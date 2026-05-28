@@ -1,17 +1,17 @@
 {
-  "name": "Innei's Afilmory",
-  "title": "Innei's Afilmory",
-  "description": "Capturing beautiful moments in life, documenting daily warmth and emotions through my lens.",
-  "url": "https://afilmory.innei.in/",
+  "name": "Hyoban's Photos",
+  "title": "Hyoban's Photos",
+  "description": "Do what you want.",
+  "url": "https://photos.hyoban.cc",
   "accentColor": "#007bff",
   "author": {
-    "name": "Innei",
-    "url": "https://innei.in/",
-    "avatar": "https://cdn.jsdelivr.net/gh/Innei/static@master/avatar.png"
+    "name": "Stephen Zhou",
+    "url": "https://hyoban.cc",
+    "avatar": "https://hyoban.cc/avatar-cropped.png"
   },
   "social": {
-    "github": "",
-    "twitter": ""
+    "github": "hyoban",
+    "twitter": "hyoban_cc"
   },
   "feed": {
     "folo": {

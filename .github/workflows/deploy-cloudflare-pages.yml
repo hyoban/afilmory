@@ -1,0 +1,95 @@
+name: Deploy web to Cloudflare Pages
+
+on:
+  push:
+    branches:
+      - main
+  schedule:
+    # Runs every Monday at 04:00 Asia/Shanghai (Sunday 20:00 UTC).
+    - cron: '0 20 * * 0'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cloudflare-pages-production
+  cancel-in-progress: false
+
+env:
+  CLOUDFLARE_PROJECT_NAME: afilmory-web
+  S3_REGION: ${{ vars.S3_REGION || 'auto' }}
+  S3_ENDPOINT: ${{ vars.S3_ENDPOINT || 'https://e68c7dce80df20ff5802b9ac36f1eab6.r2.cloudflarestorage.com' }}
+  S3_BUCKET_NAME: ${{ vars.S3_BUCKET_NAME || 'afilmory-photos' }}
+  S3_PREFIX: ${{ vars.S3_PREFIX }}
+  S3_CUSTOM_DOMAIN: ${{ vars.S3_CUSTOM_DOMAIN || 'https://assets.photos.hyoban.cc' }}
+  S3_EXCLUDE_REGEX: ${{ vars.S3_EXCLUDE_REGEX }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.1.2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Prepare photo build cache directories
+        run: mkdir -p apps/web/src/data apps/web/public/thumbnails
+
+      - name: Compute photo build cache scope
+        id: photo-cache-scope
+        shell: bash
+        run: |
+          {
+            printf 'region=%s\n' "$S3_REGION"
+            printf 'endpoint=%s\n' "$S3_ENDPOINT"
+            printf 'bucket=%s\n' "$S3_BUCKET_NAME"
+            printf 'prefix=%s\n' "$S3_PREFIX"
+            printf 'custom_domain=%s\n' "$S3_CUSTOM_DOMAIN"
+            printf 'exclude_regex=%s\n' "$S3_EXCLUDE_REGEX"
+          } | sha256sum | awk '{ print "hash=" $1 }' >> "$GITHUB_OUTPUT"
+
+      - name: Restore photo build cache
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            apps/web/src/data/photos-manifest.json
+            apps/web/public/thumbnails
+          key: photo-build-${{ runner.os }}-${{ steps.photo-cache-scope.outputs.hash }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            photo-build-${{ runner.os }}-${{ steps.photo-cache-scope.outputs.hash }}-
+
+      - name: Build static web app
+        run: pnpm --filter @afilmory/web build
+        env:
+          S3_ACCESS_KEY_ID: ${{ secrets.S3_ACCESS_KEY_ID }}
+          S3_SECRET_ACCESS_KEY: ${{ secrets.S3_SECRET_ACCESS_KEY }}
+
+      - name: Save photo build cache
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            apps/web/src/data/photos-manifest.json
+            apps/web/public/thumbnails
+          key: photo-build-${{ runner.os }}-${{ steps.photo-cache-scope.outputs.hash }}-${{ github.run_id }}-${{ github.run_attempt }}
+
+      - name: Deploy to Cloudflare Pages
+        working-directory: apps/web
+        run: pnpm dlx wrangler@4 pages deploy dist --project-name="${CLOUDFLARE_PROJECT_NAME}" --branch=main
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
