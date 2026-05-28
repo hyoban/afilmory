@@ -2,7 +2,7 @@ import type { ModalComponent } from '@afilmory/ui'
 import { Modal } from '@afilmory/ui'
 import { clsxm } from '@afilmory/utils'
 import type { MouseEvent, ReactElement, ReactNode } from 'react'
-import { cloneElement, isValidElement, useCallback, useMemo, useState } from 'react'
+import { cloneElement, isValidElement, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
@@ -80,13 +80,29 @@ const ShareSheet: ModalComponent<ShareSheetProps> = ({ photo, blobSrc, dismiss }
     return `${resolvedBaseUrl}${pathname}`
   }, [photo.id, resolvedBaseUrl])
 
-  const ogPreviewUrl = useMemo(() => {
-    const path = `/og/${photo.id}`
-    if (!resolvedBaseUrl) {
-      return path
+  const preferredPreviewImageUrl = useMemo(() => {
+    return resolveAssetUrl(photo.ogImageUrl || getStaticOgImagePath(photo.id), resolvedBaseUrl)
+  }, [photo.id, photo.ogImageUrl, resolvedBaseUrl])
+
+  const fallbackPreviewImageUrl = useMemo(() => {
+    return resolveAssetUrl(photo.thumbnailUrl || photo.originalUrl, resolvedBaseUrl)
+  }, [photo.originalUrl, photo.thumbnailUrl, resolvedBaseUrl])
+
+  const [previewImageUrl, setPreviewImageUrl] = useState(preferredPreviewImageUrl)
+
+  useEffect(() => {
+    setIsOgImageLoading(true)
+    setPreviewImageUrl(preferredPreviewImageUrl)
+  }, [preferredPreviewImageUrl])
+
+  const handlePreviewImageError = useCallback(() => {
+    if (fallbackPreviewImageUrl && previewImageUrl !== fallbackPreviewImageUrl) {
+      setPreviewImageUrl(fallbackPreviewImageUrl)
+      return
     }
-    return `${resolvedBaseUrl}${path}`
-  }, [photo.id, resolvedBaseUrl])
+
+    setIsOgImageLoading(false)
+  }, [fallbackPreviewImageUrl, previewImageUrl])
 
   const shareTitle = photo.title || t('photo.share.default.title')
   const shareText = t('photo.share.text', { title: shareTitle })
@@ -145,7 +161,7 @@ const ShareSheet: ModalComponent<ShareSheetProps> = ({ photo, blobSrc, dismiss }
   const handleDownloadPreview = useCallback(async () => {
     try {
       setIsDownloadingPreview(true)
-      await downloadFile(ogPreviewUrl, `${photo.id}-og.png`)
+      await downloadFile(previewImageUrl, `${photo.id}-preview${getDownloadExtension(previewImageUrl)}`)
       toast.success(t('photo.share.downloadPreview'))
     }
     catch {
@@ -154,7 +170,7 @@ const ShareSheet: ModalComponent<ShareSheetProps> = ({ photo, blobSrc, dismiss }
     finally {
       setIsDownloadingPreview(false)
     }
-  }, [ogPreviewUrl, photo.id, t])
+  }, [photo.id, previewImageUrl, t])
 
   const handleSocialShare = useCallback(
     (urlTemplate: string) => {
@@ -203,7 +219,7 @@ const ShareSheet: ModalComponent<ShareSheetProps> = ({ photo, blobSrc, dismiss }
               </div>
             )}
             <img
-              src={ogPreviewUrl}
+              src={previewImageUrl}
               alt={photo.title}
               className={clsxm(
                 'h-full w-full object-cover transition-opacity duration-300',
@@ -211,7 +227,7 @@ const ShareSheet: ModalComponent<ShareSheetProps> = ({ photo, blobSrc, dismiss }
               )}
               loading="lazy"
               onLoad={() => setIsOgImageLoading(false)}
-              onError={() => setIsOgImageLoading(false)}
+              onError={handlePreviewImageError}
             />
           </div>
         </div>
@@ -275,6 +291,34 @@ async function downloadFile(url: string, filename: string) {
   link.click()
   link.remove()
   URL.revokeObjectURL(blobUrl)
+}
+
+function resolveAssetUrl(url: string, baseUrl: string) {
+  if (!url) {
+    return url
+  }
+
+  try {
+    return new URL(url, baseUrl || window.location.origin).toString()
+  }
+  catch {
+    return url
+  }
+}
+
+function getStaticOgImagePath(photoId: string) {
+  return `/og-images/${encodeURIComponent(photoId)}.png`
+}
+
+function getDownloadExtension(url: string) {
+  try {
+    const pathname = new URL(url, typeof window !== 'undefined' ? window.location.origin : siteConfig.url).pathname
+    const extension = pathname.match(/\.(png|jpe?g|webp|gif)$/i)?.[0]
+    return extension?.toLowerCase() ?? '.jpg'
+  }
+  catch {
+    return '.jpg'
+  }
 }
 
 async function buildShareFiles(photo: PhotoManifest, blobSrc?: string) {

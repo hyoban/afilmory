@@ -17,6 +17,7 @@ builder.config.ts
 apps/web/assets-git
 apps/web/src/data/photos-manifest.json
 .vercel
+.wrangler
 */*/.next
 .claude
 
@@ -26,3 +27,5 @@ apps/web/public/originals
 
 # og-image-storage plugin generated files
 functions/
+!apps/web/functions/
+!apps/web/functions/**

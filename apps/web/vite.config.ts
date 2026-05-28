@@ -1,6 +1,7 @@
 import { execSync } from 'node:child_process'
 import { rmSync } from 'node:fs'
 import path, { resolve } from 'node:path'
+import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 
 import tailwindcss from '@tailwindcss/vite'
@@ -24,6 +25,7 @@ import { createFeedSitemapPlugin } from './plugins/vite/feed-sitemap'
 import { localesJsonPlugin } from './plugins/vite/locales-json'
 import { manifestInjectPlugin } from './plugins/vite/manifest-inject'
 import { ogImagePlugin } from './plugins/vite/og-image-plugin'
+import { photoOgMetadataPlugin } from './plugins/vite/photo-og-metadata'
 import { photosStaticPlugin } from './plugins/vite/photos-static'
 import { siteConfigInjectPlugin } from './plugins/vite/site-config-inject'
 
@@ -148,6 +150,12 @@ const staticWebBuildPlugins: PluginOption[] = [
     siteName: siteConfig.name,
     siteUrl: siteConfig.url,
   }),
+  photoOgMetadataPlugin({
+    title: siteConfig.title,
+    name: siteConfig.name,
+    description: siteConfig.description,
+    url: siteConfig.url,
+  }),
   createFeedSitemapPlugin(siteConfig),
   createHtmlPlugin({
     minify: {
@@ -233,7 +241,8 @@ export default defineConfig(() => {
 function getGitHash() {
   try {
     return execSync('git rev-parse HEAD').toString().trim()
-  } catch (e) {
+  }
+  catch (e) {
     console.error('Failed to get git hash', e)
     return ''
   }
