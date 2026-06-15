@@ -1,7 +1,7 @@
 import { Spring } from '@afilmory/utils'
 import { useAtom, useSetAtom } from 'jotai'
 import type { LucideIcon } from 'lucide-react'
-import { Aperture, Camera, GitBranch, Star, Tag } from 'lucide-react'
+import { Aperture, Calendar, Camera, GitBranch, Star, Tag } from 'lucide-react'
 import { m as motion } from 'motion/react'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -12,6 +12,21 @@ import type { PhotoManifest } from '~/types/photo'
 
 import { FilterChips } from './FilterChips'
 import { HeroActions } from './HeroActions'
+
+type DateRangeShape = { from: string | null, to: string | null }
+
+const formatDateRangeHeadline = (range: DateRangeShape, t: ReturnType<typeof useTranslation>['t']): string => {
+  if (range.from && range.to) {
+    return `${range.from} → ${range.to}`
+  }
+  if (range.from) {
+    return t('action.date.since', { date: range.from })
+  }
+  if (range.to) {
+    return t('action.date.until', { date: range.to })
+  }
+  return ''
+}
 
 // 从照片中随机选择一些作为背景拼贴
 const getRandomPhotos = (photos: PhotoManifest[], count = 12): PhotoManifest[] => {
@@ -40,6 +55,7 @@ export const ActiveFiltersHero = () => {
     return remaining > 0 ? `${summary} +${remaining}` : summary
   }
 
+  // Headline shows at most 2 fragments; priority: tags → cameras → lenses → rating → date.
   const headline = useMemo(() => {
     const fragments: string[] = []
     if (gallerySetting.selectedTags.length > 0) {
@@ -54,12 +70,16 @@ export const ActiveFiltersHero = () => {
     if (gallerySetting.selectedRatings !== null) {
       fragments.push(`${gallerySetting.selectedRatings}+ ★`)
     }
+    if (gallerySetting.selectedDateRange) {
+      fragments.push(formatDateRangeHeadline(gallerySetting.selectedDateRange, t))
+    }
     if (fragments.length === 0) {
       return t('gallery.filter.active')
     }
     return fragments.slice(0, 2).join(' · ')
   }, [
     gallerySetting.selectedCameras,
+    gallerySetting.selectedDateRange,
     gallerySetting.selectedLenses,
     gallerySetting.selectedRatings,
     gallerySetting.selectedTags,
@@ -100,9 +120,18 @@ export const ActiveFiltersHero = () => {
         value: `${gallerySetting.selectedRatings}+`,
       })
     }
+    if (gallerySetting.selectedDateRange) {
+      items.push({
+        key: 'date',
+        icon: Calendar,
+        label: t('action.date.label'),
+        value: formatDateRangeHeadline(gallerySetting.selectedDateRange, t),
+      })
+    }
     return items
   }, [
     gallerySetting.selectedCameras,
+    gallerySetting.selectedDateRange,
     gallerySetting.selectedLenses,
     gallerySetting.selectedRatings,
     gallerySetting.selectedTags,
@@ -144,6 +173,13 @@ export const ActiveFiltersHero = () => {
     }))
   }
 
+  const handleRemoveDateRange = () => {
+    setGallerySetting(prev => ({
+      ...prev,
+      selectedDateRange: null,
+    }))
+  }
+
   const handleClearAll = () => {
     setGallerySetting(prev => ({
       ...prev,
@@ -151,6 +187,7 @@ export const ActiveFiltersHero = () => {
       selectedCameras: [],
       selectedLenses: [],
       selectedRatings: null,
+      selectedDateRange: null,
       tagFilterMode: 'union',
     }))
   }
@@ -240,10 +277,12 @@ export const ActiveFiltersHero = () => {
                 cameras={gallerySetting.selectedCameras}
                 lenses={gallerySetting.selectedLenses}
                 rating={gallerySetting.selectedRatings}
+                dateRange={gallerySetting.selectedDateRange}
                 onRemoveTag={handleRemoveTag}
                 onRemoveCamera={handleRemoveCamera}
                 onRemoveLens={handleRemoveLens}
                 onRemoveRating={handleRemoveRating}
+                onRemoveDateRange={handleRemoveDateRange}
               />
             </div>
             <div className="flex shrink-0 justify-center lg:justify-end">

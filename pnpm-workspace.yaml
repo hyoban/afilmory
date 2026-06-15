@@ -8,6 +8,17 @@ packages:
 
 minimumReleaseAge: 0
 
+overrides:
+  motion: 12.38.0
+  motion-dom: 12.38.0
+  'hono@<4.12.21': ^4.12.21
+  'shell-quote@<1.8.4': ^1.8.4
+  'qs@<6.15.2': ^6.15.2
+  'serialize-javascript@<7.0.5': ^7.0.5
+  'react-use>js-cookie': ^3.0.7
+  'next>postcss': ^8.5.10
+  '@esbuild-kit/core-utils>esbuild': ^0.25.0
+
 catalog:
   '@egoist/tailwindcss-icons': 1.9.2
   '@iconify-json/mingcute': 1.2.7

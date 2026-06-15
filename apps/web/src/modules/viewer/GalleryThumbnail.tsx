@@ -19,7 +19,8 @@ export const GalleryThumbnail: FC<{
   photos: PhotoManifest[]
   onIndexChange: (index: number) => void
   visible?: boolean
-}> = ({ currentIndex, photos, onIndexChange, visible = true }) => {
+  disableEntryTransition?: boolean
+}> = ({ currentIndex, photos, onIndexChange, visible = true, disableEntryTransition = false }) => {
   const scrollContainerRef = useRef<HTMLDivElement>(null)
 
   const isMobile = useMobile()
@@ -59,7 +60,7 @@ export const GalleryThumbnail: FC<{
 
     if (scrollContainer && photos.length > 0 && currentIndex < photos.length) {
       // Use virtualizer's actual measurements for accurate positioning
-      const virtualItem = virtualizer.getVirtualItems().find((item) => item.index === currentIndex)
+      const virtualItem = virtualizer.getVirtualItems().find(item => item.index === currentIndex)
 
       if (virtualItem) {
         // virtualItem.start is the actual measured start position
@@ -75,7 +76,8 @@ export const GalleryThumbnail: FC<{
             behavior: 'smooth',
           })
         })
-      } else {
+      }
+      else {
         // Fallback: calculate manually if virtual item not yet rendered
         let thumbnailLeft = 0
         for (let i = 0; i < currentIndex; i++) {
@@ -102,7 +104,9 @@ export const GalleryThumbnail: FC<{
   // 处理鼠标滚轮事件，映射为横向滚动
   useEffect(() => {
     const scrollContainer = scrollContainerRef.current
-    if (!scrollContainer) return
+    if (!scrollContainer) {
+      return
+    }
 
     const handleWheel = (e: WheelEvent) => {
       // 阻止默认的垂直滚动
@@ -124,7 +128,7 @@ export const GalleryThumbnail: FC<{
   return (
     <m.div
       className="pb-safe bg-material-medium z-10 shrink-0 backdrop-blur-2xl"
-      initial={{ y: 100, opacity: 0 }}
+      initial={disableEntryTransition ? false : { y: 100, opacity: 0 }}
       animate={{
         y: visible ? 0 : 48,
         opacity: visible ? 1 : 0,

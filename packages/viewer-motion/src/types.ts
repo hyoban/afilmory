@@ -59,6 +59,7 @@ export interface MobileViewerDismissSnapshot extends ViewerFrameTransformSnapsho
 export interface UseViewerTransitionsParams<TItem extends ViewerTransitionItem> {
   currentDisplaySrc?: string | null
   currentItem?: TItem
+  disableEntryTransition?: boolean
   exitOverrideFrame?: AnimationFrameRect | null
   isMobile: boolean
   isOpen: boolean

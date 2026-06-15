@@ -5,7 +5,7 @@
 # -----------------
 # Base stage
 # -----------------
-FROM node:20-alpine AS base
+FROM node:lts-alpine AS base
 WORKDIR /app
 RUN corepack enable
 

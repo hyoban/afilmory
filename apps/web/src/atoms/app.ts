@@ -4,6 +4,11 @@ export type GallerySortBy = 'date'
 export type GallerySortOrder = 'asc' | 'desc'
 export type GalleryViewMode = 'masonry' | 'list'
 
+export interface DateRangeFilter {
+  from: string | null
+  to: string | null
+}
+
 export const gallerySettingAtom = atom({
   sortBy: 'date' as GallerySortBy,
   sortOrder: 'desc' as GallerySortOrder,
@@ -11,6 +16,7 @@ export const gallerySettingAtom = atom({
   selectedCameras: [] as string[], // Selected camera display names
   selectedLenses: [] as string[], // Selected lens display names
   selectedRatings: null as number | null, // Selected minimum rating threshold
+  selectedDateRange: null as DateRangeFilter | null,
   tagFilterMode: 'union' as 'union' | 'intersection', // Tag filtering logic mode
 
   columns: 'auto' as number | 'auto', // 自定义列数，auto 表示自动计算

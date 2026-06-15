@@ -1,3 +1,5 @@
+import type { Buffer } from 'node:buffer'
+
 import type { Tags } from 'exiftool-vendored'
 
 // 地理位置信息
@@ -11,14 +13,6 @@ export interface LocationInfo {
 
 // 影调类型定义
 export type ToneType = 'low-key' | 'high-key' | 'normal' | 'high-contrast'
-
-// 压缩的直方图数据结构
-export interface CompressedHistogramData {
-  red: number[] // 64 个点位，降采样后的数据
-  green: number[] // 64 个点位，降采样后的数据
-  blue: number[] // 64 个点位，降采样后的数据
-  luminance: number[] // 64 个点位，降采样后的数据
-}
 
 // 原始直方图数据结构（仅用于内部计算）
 export interface HistogramData {
@@ -38,9 +32,9 @@ export interface ToneAnalysis {
 }
 
 // Video source sum type: Live Photo or Motion Photo
-export type VideoSource =
-  | { type: 'live-photo'; videoUrl: string; s3Key: string }
-  | { type: 'motion-photo'; offset: number; size?: number; presentationTimestamp?: number }
+export type VideoSource
+  = | { type: 'live-photo', videoUrl: string, s3Key: string }
+    | { type: 'motion-photo', offset: number, size?: number, presentationTimestamp?: number }
 
 export interface PhotoInfo {
   title: string

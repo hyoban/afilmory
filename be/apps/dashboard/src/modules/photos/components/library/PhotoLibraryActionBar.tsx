@@ -6,7 +6,7 @@ import { useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useShallow } from 'zustand/shallow'
 
-import { usePhotoLibraryStore } from './PhotoLibraryProvider'
+import { usePhotoLibraryStore } from './photo-library'
 import { PhotoTagEditorModal } from './PhotoTagEditorModal'
 import { PhotoUploadConfirmModal } from './PhotoUploadConfirmModal'
 
@@ -37,7 +37,7 @@ export function PhotoLibraryActionBar() {
     selectedIds,
     assets,
   } = usePhotoLibraryStore(
-    useShallow((state) => ({
+    useShallow(state => ({
       selectionCount: state.selectedIds.length,
       totalCount: state.libraryTotalCount,
       isUploading: state.isUploading,
@@ -65,7 +65,7 @@ export function PhotoLibraryActionBar() {
       return emptyArray
     }
     const idSet = new Set(selectedIds)
-    return assets.filter((asset) => idSet.has(asset.id))
+    return assets.filter(asset => idSet.has(asset.id))
   }, [assets, selectedIds])
 
   const handleUploadClick = () => {
@@ -74,7 +74,9 @@ export function PhotoLibraryActionBar() {
 
   const handleFileChange: ChangeEventHandler<HTMLInputElement> = (event) => {
     const { files } = event.currentTarget
-    if (!files || files.length === 0) return
+    if (!files || files.length === 0) {
+      return
+    }
 
     const selectedFiles = Array.from(files)
 

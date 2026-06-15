@@ -1,19 +1,25 @@
 import { Spring } from '@afilmory/utils'
 import type { LucideIcon } from 'lucide-react'
-import { Aperture, Camera, Filter, Star, Tag, X } from 'lucide-react'
+import { Aperture, Calendar, Camera, Filter, Star, Tag, X } from 'lucide-react'
 import { m as motion } from 'motion/react'
 
 interface FilterChipProps {
-  type: 'tag' | 'camera' | 'lens' | 'rating'
+  type: 'tag' | 'camera' | 'lens' | 'rating' | 'date'
   label: string
   onRemove: () => void
   icon?: LucideIcon
 }
 
+const ICON_BY_TYPE: Record<FilterChipProps['type'], LucideIcon> = {
+  tag: Tag,
+  camera: Camera,
+  lens: Aperture,
+  rating: Star,
+  date: Calendar,
+}
+
 export const FilterChip = ({ type, label, onRemove, icon }: FilterChipProps) => {
-  const Icon: LucideIcon
-    = icon
-      ?? (type === 'tag' ? Tag : type === 'camera' ? Camera : type === 'lens' ? Aperture : type === 'rating' ? Star : Filter)
+  const Icon: LucideIcon = icon ?? ICON_BY_TYPE[type] ?? Filter
 
   return (
     <motion.div

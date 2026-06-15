@@ -83,8 +83,7 @@
     "tiff": "^7.1.3",
     "usehooks-ts": "3.1.1",
     "vaul": "1.1.2",
-    "zod": "catalog:",
-    "zustand": "5.0.13"
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@egoist/tailwindcss-icons": "catalog:",
@@ -115,7 +114,7 @@
     "tailwindcss-safe-area": "catalog:",
     "tailwindcss-uikit-colors": "catalog:",
     "unplugin-ast": "0.17.0",
-    "vite": "8.0.13",
+    "vite": "8.0.16",
     "vite-plugin-html": "3.2.2",
     "vite-plugin-pwa": "1.3.0",
     "vite-plugin-route-builder": "0.5.0-alpha.1"

@@ -1,0 +1,13 @@
+[project]
+name = "clip-spike"
+version = "0.1.0"
+description = "Throwaway sandbox for testing CLIP image embeddings on a real photo folder."
+requires-python = ">=3.11"
+dependencies = [
+    "sentence-transformers>=3.0",
+    "torch>=2.4",
+    "torchvision",
+    "pillow>=10",
+    "numpy",
+    "tqdm",
+]

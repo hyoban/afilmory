@@ -25,6 +25,11 @@ apps/web/public/thumbnails
 apps/web/public/photos
 apps/web/public/originals
 
+# variant cluster report (pnpm build:variant-report)
+cluster-report.html
+cluster-report.json
+apps/web/src/data/.cache/
+
 # og-image-storage plugin generated files
 functions/
 !apps/web/functions/

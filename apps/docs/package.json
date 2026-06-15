@@ -57,6 +57,7 @@
     "eslint-plugin-react-refresh": "^0.5.2",
     "glob": "^13.0.6",
     "globals": "^17.6.0",
+    "rollup": "^4.59.0",
     "shiki": "^4.0.2",
     "tailwind-scrollbar": "catalog:",
     "tailwindcss": "catalog:",
@@ -66,6 +67,6 @@
     "tsx": "^4.22.3",
     "typescript": "~6.0.3",
     "typescript-eslint": "^8.59.4",
-    "vite": "8.0.13"
+    "vite": "8.0.16"
   }
 }

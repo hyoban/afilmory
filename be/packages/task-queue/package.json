@@ -19,8 +19,8 @@
     "ioredis": "^5.8.0"
   },
   "dependencies": {
-    "@tsuki-hono/common": "0.0.2",
-    "@tsuki-hono/core": "0.0.2",
+    "@tsuki-hono/common": "0.0.3",
+    "@tsuki-hono/core": "0.0.3",
     "tsyringe": "^4.10.0"
   },
   "devDependencies": {

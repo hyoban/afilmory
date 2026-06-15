@@ -61,12 +61,7 @@ export function PhotoSyncTab() {
   const [syncProgress, setSyncProgress] = useState<PhotoSyncProgressState | null>(null)
 
   const summaryQuery = usePhotoAssetSummaryQuery()
-  const {
-    data: syncStatus,
-    isLoading: isSyncStatusLoading,
-    isFetching: isSyncStatusFetching,
-    refetch: refetchSyncStatus,
-  } = usePhotoSyncStatusQuery()
+  const { data: syncStatus, isLoading: isSyncStatusLoading, refetch: refetchSyncStatus } = usePhotoSyncStatusQuery()
   const conflictsQuery = usePhotoSyncConflictsQuery()
   const resolveConflictMutation = useResolvePhotoSyncConflictMutation()
 
@@ -94,15 +89,14 @@ export function PhotoSyncTab() {
     }
 
     if (event.type === 'error') {
-      setSyncProgress((prev) =>
+      setSyncProgress(prev =>
         prev
           ? {
               ...prev,
               error: event.payload.message,
               updatedAt: Date.now(),
             }
-          : prev,
-      )
+          : prev)
       return
     }
 
@@ -193,15 +187,14 @@ export function PhotoSyncTab() {
   }, [])
 
   const handleSyncError = useCallback((error: Error) => {
-    setSyncProgress((prev) =>
+    setSyncProgress(prev =>
       prev
         ? {
             ...prev,
             error: error.message,
             updatedAt: Date.now(),
           }
-        : prev,
-    )
+        : prev)
   }, [])
 
   const handleSyncCompleted = useCallback(
@@ -233,18 +226,20 @@ export function PhotoSyncTab() {
         })
         toast.success(t('photos.sync.toasts.conflict-resolved'), {
           description:
-            action.reason ??
-            (strategy === 'prefer-storage'
+            action.reason
+            ?? (strategy === 'prefer-storage'
               ? t('photos.sync.toasts.conflict-storage')
               : t('photos.sync.toasts.conflict-database')),
         })
         void conflictsQuery.refetch()
         void summaryQuery.refetch()
         void queryClient.invalidateQueries({ queryKey: PHOTO_ASSET_LIST_QUERY_KEY })
-      } catch (error) {
+      }
+      catch (error) {
         const message = getRequestErrorMessage(error, t('photos.sync.toasts.conflict-error-desc'))
         toast.error(t('photos.sync.toasts.conflict-error'), { description: message })
-      } finally {
+      }
+      finally {
         setResolvingConflictId(null)
       }
     },
@@ -270,17 +265,19 @@ export function PhotoSyncTab() {
               strategy,
             })
             processed += 1
-          } catch (error) {
+          }
+          catch (error) {
             errors.push(getRequestErrorMessage(error, t('photos.sync.toasts.conflict-error-desc')))
           }
         }
-      } finally {
+      }
+      finally {
         setResolvingConflictId(null)
       }
 
       if (processed > 0) {
-        const strategyLabel =
-          strategy === 'prefer-storage'
+        const strategyLabel
+          = strategy === 'prefer-storage'
             ? t('photos.sync.conflicts.strategy.storage')
             : t('photos.sync.conflicts.strategy.database')
         toast.success(
@@ -306,11 +303,8 @@ export function PhotoSyncTab() {
     [conflictsQuery, resolveConflictMutation, summaryQuery, queryClient],
   )
 
-  const showConflictsPanel =
-    conflictsQuery.isLoading ||
-    conflictsQuery.isFetching ||
-    (conflictsQuery.data?.length ?? 0) > 0 ||
-    (result?.summary.conflicts ?? 0) > 0
+  const showConflictsPanel
+    = conflictsQuery.isLoading || (conflictsQuery.data?.length ?? 0) > 0 || (result?.summary.conflicts ?? 0) > 0
 
   const controllerValue = useMemo(
     () => ({
@@ -326,7 +320,7 @@ export function PhotoSyncTab() {
     conflictsPanel = (
       <PhotoSyncConflictsPanel
         conflicts={conflictsQuery.data}
-        isLoading={conflictsQuery.isLoading || conflictsQuery.isFetching}
+        isLoading={conflictsQuery.isLoading}
         resolvingId={resolvingConflictId}
         isBatchResolving={resolvingConflictId === BATCH_RESOLVING_ID}
         onResolve={handleResolveConflict}
@@ -348,7 +342,7 @@ export function PhotoSyncTab() {
             baselineSummary={summaryQuery.data}
             isSummaryLoading={summaryQuery.isLoading}
             lastSyncRun={syncStatus?.lastRun ?? null}
-            isSyncStatusLoading={isSyncStatusLoading || isSyncStatusFetching}
+            isSyncStatusLoading={isSyncStatusLoading}
             onRequestStorageUrl={getPhotoStorageUrl}
           />
         </div>

@@ -12,7 +12,7 @@ import type {
 } from './types'
 
 export const useViewerTransitions = <
-  TItem extends { id: string; width?: number | null; height?: number | null } & {
+  TItem extends { id: string, width?: number | null, height?: number | null } & {
     previewSrc?: string | null
     fullSrc?: string | null
     thumbHash?: string | null
@@ -20,6 +20,7 @@ export const useViewerTransitions = <
 >({
   currentDisplaySrc = null,
   currentItem,
+  disableEntryTransition = false,
   exitOverrideFrame = null,
   isMobile,
   isOpen,
@@ -38,7 +39,7 @@ export const useViewerTransitions = <
 
   const [entryTransition, setEntryTransition] = useState<ViewerTransition | null>(null)
   const [exitTransition, setExitTransition] = useState<ViewerTransition | null>(null)
-  const [isViewerContentVisible, setIsViewerContentVisible] = useState(false)
+  const [isViewerContentVisible, setIsViewerContentVisible] = useState(() => isOpen && disableEntryTransition)
   const resolvedTriggerElementForCurrentItem = resolveViewerTransitionTriggerElement({
     cachedTriggerElement: cachedTriggerRef.current,
     currentItem,
@@ -52,7 +53,8 @@ export const useViewerTransitions = <
       const prevVisibility = hiddenTriggerPrevVisibilityRef.current
       if (prevVisibility != null) {
         trigger.style.visibility = prevVisibility
-      } else {
+      }
+      else {
         trigger.style.removeProperty('visibility')
       }
     }
@@ -102,13 +104,24 @@ export const useViewerTransitions = <
   }, [isOpen])
 
   useEffect(() => {
-    if (!isOpen) return
+    if (!isOpen) {
+      return
+    }
     resolveTriggerElement()
   }, [isOpen, resolveTriggerElement])
 
   useLayoutEffect(() => {
-    if (!isOpen || !currentItem) return
-    if (entryTransition || isViewerContentVisible) return
+    if (!isOpen || !currentItem) {
+      return
+    }
+    if (entryTransition || isViewerContentVisible) {
+      return
+    }
+
+    if (disableEntryTransition) {
+      setIsViewerContentVisible(true)
+      return
+    }
 
     const resolvedTriggerElement = resolveTriggerElement()
 
@@ -181,6 +194,7 @@ export const useViewerTransitions = <
   }, [
     currentDisplaySrc,
     currentItem,
+    disableEntryTransition,
     entryTransition,
     hideTriggerElement,
     isMobile,
@@ -296,7 +310,9 @@ export const useViewerTransitions = <
   ])
 
   useLayoutEffect(() => {
-    if (!isOpen) return
+    if (!isOpen) {
+      return
+    }
 
     const updateBounds = () => {
       if (containerRef.current) {
@@ -327,7 +343,7 @@ export const useViewerTransitions = <
   }, [onExitComplete, restoreTriggerElementVisibility])
 
   const isEntryAnimating = Boolean(entryTransition)
-  const hasTransitionTrigger = Boolean(resolvedTriggerElementForCurrentItem)
+  const hasTransitionTrigger = !disableEntryTransition && Boolean(resolvedTriggerElementForCurrentItem)
   const shouldRenderBackdrop = isOpen || Boolean(exitTransition) || Boolean(entryTransition)
 
   const thumbHash = typeof currentItem?.thumbHash === 'string' ? currentItem.thumbHash : null

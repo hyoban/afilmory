@@ -1,0 +1,12 @@
+[project]
+name = "clip-embedder"
+version = "0.1.0"
+description = "Stdin-driven CLIP image embedder for Afilmory variant clustering."
+requires-python = ">=3.11"
+dependencies = [
+    "sentence-transformers>=3.0",
+    "torch>=2.4",
+    "torchvision",
+    "pillow>=10",
+    "numpy",
+]

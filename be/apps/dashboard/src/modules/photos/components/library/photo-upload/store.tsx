@@ -4,45 +4,18 @@ import type { StoreApi } from 'zustand'
 import { useStore } from 'zustand'
 import { createStore } from 'zustand/vanilla'
 
-import { presentBillingUpgradeModal, resolveBillingUpgradeCategory } from '~/modules/billing/upgrade-prompts'
-
-import type { PhotoSyncProgressEvent } from '../../../types'
 import type { PhotoUploadRequestOptions } from '../upload.types'
-import type { FileProgressEntry, ProcessingLogEntry, ProcessingState, WorkflowPhase } from './types'
-import {
-  calculateTotalSize,
-  calculateUploadedBytes,
-  collectUnmatchedMovFiles,
-  createFileEntries,
-  createFileList,
-  createStageStateFromTotals,
-  deriveDirectoryFromTags,
-  getErrorMessage,
-  normalizeStageCount,
-} from './utils'
+import type { PhotoUploadAction } from './action'
+import { PhotoUploadActionImpl } from './action'
+import { clearActivePhotoUploadStoreIfMatches, setActivePhotoUploadStore } from './active-store'
+import type { PhotoUploadState } from './initialState'
+import { createInitialPhotoUploadState } from './initialState'
+import type { PreviewCache } from './types'
 
-type PhotoUploadStoreState = {
-  files: File[]
-  totalSize: number
-  uploadedBytes: number
-  availableTags: string[]
-  selectedTags: string[]
-  unmatchedMovFiles: File[]
-  hasMovFile: boolean
-  phase: WorkflowPhase
-  uploadEntries: FileProgressEntry[]
-  uploadError: string | null
-  processingError: string | null
-  processingState: ProcessingState | null
-  processingLogs: ProcessingLogEntry[]
-  removeEntry: (entry: FileProgressEntry) => void
-  beginUpload: () => Promise<void>
-  abortCurrent: () => void
-  reset: () => void
-  closeModal: () => void
-  setSelectedTags: (tags: string[]) => void
-  cleanup: () => void
-}
+export type { AddFilesResult } from './action'
+
+export type PhotoUploadStoreState = PhotoUploadState & PhotoUploadAction
+export type PhotoUploadStore = StoreApi<PhotoUploadStoreState>
 
 type PhotoUploadStoreParams = {
   files: File[]
@@ -51,350 +24,24 @@ type PhotoUploadStoreParams = {
   onClose: () => void
 }
 
-export type PhotoUploadStore = StoreApi<PhotoUploadStoreState>
-
 const PhotoUploadStoreContext = createContext<PhotoUploadStore | null>(null)
 
-const computeUploadedBytes = (entries: FileProgressEntry[]) => calculateUploadedBytes(entries)
-const MAX_PROCESSING_LOGS = 200
-let processingLogSequence = 0
-// Extend upload request timeout to tolerate larger batches / slower networks (10 minutes).
-const UPLOAD_REQUEST_TIMEOUT_MS = 600_000
-
+// eslint-disable-next-line react-refresh/only-export-components
 export function createPhotoUploadStore(params: PhotoUploadStoreParams): PhotoUploadStore {
-  const { files: initialFiles, availableTags, onUpload, onClose } = params
-  const initialEntries = createFileEntries(initialFiles)
-  const totalSize = calculateTotalSize(initialFiles)
-  const { unmatched: unmatchedMovFiles, hasMov } = collectUnmatchedMovFiles(initialFiles)
+  const previewCache: PreviewCache = new Map()
 
-  let uploadAbortController: AbortController | null = null
-
-  const store = createStore<PhotoUploadStoreState>((set, get) => {
-    const updateEntries = (updater: (entries: FileProgressEntry[]) => FileProgressEntry[]) => {
-      set((state) => {
-        const nextEntries = updater(state.uploadEntries)
-        return {
-          uploadEntries: nextEntries,
-          uploadedBytes: computeUploadedBytes(nextEntries),
-        }
-      })
-    }
-
-    const handleProcessingEvent = (event: PhotoSyncProgressEvent) => {
-      if (event.type === 'start') {
-        updateEntries((entries) =>
-          entries.map((entry) => ({
-            ...entry,
-            status: entry.status === 'uploading' ? 'processing' : entry.status,
-          })),
-        )
-        const { summary, totals, options: eventOptions } = event.payload
-        set({
-          phase: 'processing',
-          processingError: null,
-          processingState: {
-            dryRun: eventOptions?.dryRun ?? false,
-            summary,
-            totals,
-            stages: createStageStateFromTotals(totals),
-            completed: false,
-          },
-          processingLogs: [],
-        })
-        return
-      }
-
-      set((state) => {
-        if (event.type === 'log') {
-          const timestamp = Date.parse(event.payload.timestamp)
-          const logEntry: ProcessingLogEntry = {
-            id: `log-${processingLogSequence++}`,
-            message: event.payload.message,
-            level: event.payload.level,
-            timestamp: Number.isNaN(timestamp) ? Date.now() : timestamp,
-          }
-          return {
-            processingState: state.processingState
-              ? {
-                  ...state.processingState,
-                  latestLog: {
-                    message: logEntry.message,
-                    level: logEntry.level,
-                    timestamp: logEntry.timestamp,
-                  },
-                }
-              : state.processingState,
-            processingLogs: [...state.processingLogs, logEntry].slice(-MAX_PROCESSING_LOGS),
-          }
-        }
-
-        const prev = state.processingState
-        if (!prev) {
-          if (event.type === 'error') {
-            return {
-              phase: 'error',
-              processingError: event.payload.message,
-            }
-          }
-          return {}
-        }
-
-        switch (event.type) {
-          case 'stage': {
-            const { stage, status, processed, total, summary } = event.payload
-            const prevStage = prev.stages[stage]
-            const normalizedTotal = normalizeStageCount(total, prevStage?.total ?? 0)
-            const normalizedProcessed = normalizeStageCount(processed, prevStage?.processed ?? 0)
-            return {
-              processingState: {
-                ...prev,
-                summary,
-                stages: {
-                  ...prev.stages,
-                  [stage]: {
-                    status: status === 'complete' || normalizedTotal === 0 ? 'completed' : 'running',
-                    processed: Math.min(normalizedProcessed, normalizedTotal),
-                    total: normalizedTotal,
-                  },
-                },
-              },
-            }
-          }
-          case 'action': {
-            const { stage, index, total, summary } = event.payload
-            const prevStage = prev.stages[stage]
-            const normalizedTotal = normalizeStageCount(total, prevStage?.total ?? 0)
-            const normalizedProcessed = normalizeStageCount(index, prevStage?.processed ?? 0)
-            return {
-              processingState: {
-                ...prev,
-                summary,
-                stages: {
-                  ...prev.stages,
-                  [stage]: {
-                    status: normalizedTotal === 0 ? 'completed' : 'running',
-                    processed: Math.min(normalizedProcessed, normalizedTotal),
-                    total: normalizedTotal,
-                  },
-                },
-              },
-            }
-          }
-          case 'error': {
-            updateEntries((entries) =>
-              entries.map((entry) => ({
-                ...entry,
-                status: entry.status === 'processing' ? 'error' : entry.status,
-              })),
-            )
-            return {
-              phase: 'error',
-              processingError: event.payload.message,
-              processingState: {
-                ...prev,
-                error: event.payload.message,
-              },
-            }
-          }
-          case 'complete': {
-            updateEntries((entries) =>
-              entries.map((entry) => ({
-                ...entry,
-                status: entry.status === 'processing' ? 'done' : entry.status,
-                progress: 1,
-                uploadedBytes: entry.size,
-              })),
-            )
-            return {
-              phase: 'completed',
-              processingState: {
-                ...prev,
-                summary: event.payload.summary,
-                completed: true,
-              },
-            }
-          }
-          default: {
-            return {}
-          }
-        }
-      })
-    }
-
-    const handleUploadProgress: NonNullable<PhotoUploadRequestOptions['onUploadProgress']> = (snapshot) => {
-      const progressMap = new Map(snapshot.files.map((file) => [file.index, file]))
-      updateEntries((entries) =>
-        entries.map((entry) => {
-          const current = progressMap.get(entry.index)
-          if (!current) {
-            return entry
-          }
-          return {
-            ...entry,
-            status: entry.status === 'pending' ? 'uploading' : entry.status,
-            progress: current.progress,
-            uploadedBytes: current.uploadedBytes,
-          }
-        }),
-      )
-    }
-
-    return {
-      files: initialFiles,
-      totalSize,
-      uploadedBytes: 0,
-      availableTags,
-      selectedTags: [],
-      unmatchedMovFiles,
-      hasMovFile: hasMov,
-      phase: 'review',
-      uploadEntries: initialEntries,
-      uploadError: null,
-      processingError: null,
-      processingState: null,
-      processingLogs: [],
-      removeEntry: (entry) => {
-        set((state) => {
-          if (state.phase !== 'review') {
-            return {}
-          }
-
-          const nextFiles = state.files.filter((_, index) => index !== entry.index)
-          if (nextFiles.length === state.files.length) {
-            return {}
-          }
-          const nextEntries = createFileEntries(nextFiles)
-          const nextTotalSize = calculateTotalSize(nextFiles)
-          const { unmatched, hasMov } = collectUnmatchedMovFiles(nextFiles)
-
-          return {
-            files: nextFiles,
-            totalSize: nextTotalSize,
-            unmatchedMovFiles: unmatched,
-            hasMovFile: hasMov,
-            uploadEntries: nextEntries,
-            uploadedBytes: computeUploadedBytes(nextEntries),
-          }
-        })
-      },
-      beginUpload: async () => {
-        const state = get()
-        if (state.unmatchedMovFiles.length > 0 || state.phase === 'uploading' || state.phase === 'processing') {
-          return
-        }
-        if (state.files.length === 0) {
-          return
-        }
-
-        set({
-          uploadError: null,
-          processingError: null,
-          processingState: null,
-          phase: 'uploading',
-          processingLogs: [],
-        })
-
-        updateEntries((entries) =>
-          entries.map((entry) => ({
-            ...entry,
-            status: 'uploading',
-          })),
-        )
-
-        const controller = new AbortController()
-        uploadAbortController = controller
-
-        try {
-          const directory = deriveDirectoryFromTags(get().selectedTags)
-          const fileList = createFileList(get().files)
-          await onUpload(fileList, {
-            signal: controller.signal,
-            directory: directory ?? undefined,
-            onUploadProgress: handleUploadProgress,
-            timeoutMs: UPLOAD_REQUEST_TIMEOUT_MS,
-            onServerEvent: handleProcessingEvent,
-          })
-        } catch (error) {
-          const isAbort = (error as DOMException)?.name === 'AbortError'
-          if (isAbort) {
-            set({ phase: 'review' })
-            const currentFiles = get().files
-            updateEntries(() => createFileEntries(currentFiles))
-          } else {
-            const upgradeCategory = resolveBillingUpgradeCategory(error)
-            if (upgradeCategory) {
-              presentBillingUpgradeModal(upgradeCategory)
-            }
-            const message = getErrorMessage(error, '上传失败，请稍后再试。')
-            set({
-              uploadError: message,
-              phase: 'error',
-            })
-            updateEntries((entries) =>
-              entries.map((entry) => ({
-                ...entry,
-                status: entry.status === 'uploading' ? 'error' : entry.status,
-              })),
-            )
-          }
-        } finally {
-          uploadAbortController = null
-        }
-      },
-      abortCurrent: () => {
-        const { phase } = get()
-        if (phase === 'uploading') {
-          uploadAbortController?.abort()
-          uploadAbortController = null
-          set({ phase: 'review' })
-          const currentFiles = get().files
-          updateEntries(() => createFileEntries(currentFiles))
-          return
-        }
-        if (phase === 'processing') {
-          uploadAbortController?.abort()
-          uploadAbortController = null
-          set({
-            processingError: '服务器处理已终止',
-            phase: 'error',
-          })
-          updateEntries((entries) =>
-            entries.map((entry) => ({
-              ...entry,
-              status: entry.status === 'processing' ? 'error' : entry.status,
-            })),
-          )
-          return
-        }
-      },
-      reset: () => {
-        uploadAbortController?.abort()
-        uploadAbortController = null
-        set({
-          phase: 'review',
-          uploadError: null,
-          processingError: null,
-          processingState: null,
-          processingLogs: [],
-        })
-        const currentFiles = get().files
-        updateEntries(() => createFileEntries(currentFiles))
-      },
-      closeModal: () => {
-        get().cleanup()
-        onClose()
-      },
-      setSelectedTags: (tags: string[]) => {
-        set({ selectedTags: tags })
-      },
-      cleanup: () => {
-        uploadAbortController?.abort()
-        uploadAbortController = null
-      },
-    }
-  })
-
-  return store
+  return createStore<PhotoUploadStoreState>((set, get) => ({
+    ...createInitialPhotoUploadState({
+      files: params.files,
+      availableTags: params.availableTags,
+      previewCache,
+    }),
+    ...new PhotoUploadActionImpl(set, get, {
+      previewCache,
+      onUpload: params.onUpload,
+      onClose: params.onClose,
+    }),
+  }))
 }
 
 type PhotoUploadStoreProviderProps = PhotoUploadStoreParams & {
@@ -414,7 +61,10 @@ export function PhotoUploadStoreProvider({
   )
 
   useEffect(() => {
+    setActivePhotoUploadStore(store)
+    store.getState().ensurePreviews()
     return () => {
+      clearActivePhotoUploadStoreIfMatches(store)
       store.getState().cleanup()
     }
   }, [store])
@@ -422,6 +72,7 @@ export function PhotoUploadStoreProvider({
   return <PhotoUploadStoreContext value={store}>{children}</PhotoUploadStoreContext>
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function usePhotoUploadStore<U>(selector: (state: PhotoUploadStoreState) => U) {
   const store = use(PhotoUploadStoreContext)
   if (!store) {

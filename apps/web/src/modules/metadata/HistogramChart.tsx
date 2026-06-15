@@ -4,26 +4,34 @@ import type { FC } from 'react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-interface CompressedHistogramData {
-  red: number[]
-  green: number[]
-  blue: number[]
-  luminance: number[]
+const BIN_COUNT = 128
+
+const CHANNELS = ['red', 'green', 'blue', 'luminance'] as const
+
+type Channel = (typeof CHANNELS)[number]
+
+type HistogramBins = Record<Channel, number[]>
+
+const CHANNEL_RGB: Record<Channel, string> = {
+  red: '255, 105, 97',
+  green: '52, 199, 89',
+  blue: '64, 156, 255',
+  luminance: '255, 255, 255',
 }
 
-interface HistogramData {
-  red: number[]
-  green: number[]
-  blue: number[]
-  luminance: number[]
+const CHANNEL_ALPHA: Record<Channel, number> = {
+  red: 0.7,
+  green: 0.7,
+  blue: 0.7,
+  luminance: 0.3,
 }
 
-const calculateHistogram = (imageData: ImageData): CompressedHistogramData => {
-  const histogram: HistogramData = {
-    red: Array.from({ length: 256 }).fill(0) as number[],
-    green: Array.from({ length: 256 }).fill(0) as number[],
-    blue: Array.from({ length: 256 }).fill(0) as number[],
-    luminance: Array.from({ length: 256 }).fill(0) as number[],
+const calculateHistogram = (imageData: ImageData): HistogramBins => {
+  const bins: HistogramBins = {
+    red: Array.from({ length: BIN_COUNT }).fill(0) as number[],
+    green: Array.from({ length: BIN_COUNT }).fill(0) as number[],
+    blue: Array.from({ length: BIN_COUNT }).fill(0) as number[],
+    luminance: Array.from({ length: BIN_COUNT }).fill(0) as number[],
   }
 
   const { data } = imageData
@@ -31,150 +39,102 @@ const calculateHistogram = (imageData: ImageData): CompressedHistogramData => {
     const r = data[i]
     const g = data[i + 1]
     const b = data[i + 2]
-    histogram.red[r]++
-    histogram.green[g]++
-    histogram.blue[b]++
+    bins.red[r >> 1]++
+    bins.green[g >> 1]++
+    bins.blue[b >> 1]++
     const luminance = Math.round(0.2126 * r + 0.7152 * g + 0.0722 * b)
-    histogram.luminance[luminance]++
+    bins.luminance[luminance >> 1]++
   }
 
-  const compress = (channelData: number[]): number[] => {
-    const compressed = Array.from({ length: 128 }).fill(0) as number[]
-    for (let i = 0; i < 256; i++) {
-      compressed[Math.floor(i / 2)] += channelData[i]
-    }
-    return compressed
-  }
-
-  return {
-    red: compress(histogram.red),
-    green: compress(histogram.green),
-    blue: compress(histogram.blue),
-    luminance: compress(histogram.luminance),
-  }
+  return bins
 }
 
-const drawHistogram = (canvas: HTMLCanvasElement, histogram: CompressedHistogramData) => {
+const createRenderer = (canvas: HTMLCanvasElement) => {
   const ctx = canvas.getContext('2d')
-  if (!ctx) return
+  if (!ctx) {
+    return null
+  }
 
-  // 获取 Canvas 的实际显示尺寸
   const rect = canvas.getBoundingClientRect()
-  const { width } = rect
-  const { height } = rect
+  const { width, height } = rect
   const dpr = window.devicePixelRatio || 1
 
-  // 设置高分辨率
   canvas.width = width * dpr
   canvas.height = height * dpr
   ctx.scale(dpr, dpr)
   canvas.style.width = `${width}px`
   canvas.style.height = `${height}px`
 
-  // 清空画布
-  ctx.clearRect(0, 0, width, height)
-
-  // 找到最大值用于归一化
-  const maxVal = Math.max(...histogram.luminance, ...histogram.red, ...histogram.green, ...histogram.blue)
-
-  if (maxVal === 0) return
-
-  const padding = 0
-  const chartWidth = width - padding * 2
-  const chartHeight = height - padding * 2
-
-  // Apple 风格的颜色定义
-  const colors = {
-    red: 'rgb(255, 105, 97)',
-    green: 'rgb(52, 199, 89)',
-    blue: 'rgb(64, 156, 255)',
-    luminance: 'rgba(255, 255, 255, 0.6)',
-    background: 'rgba(28, 28, 30, 0.95)',
-    grid: 'rgba(255, 255, 255, 0.04)',
-    border: 'rgba(255, 255, 255, 0.08)',
-  }
-
-  // 绘制背景
-  ctx.fillStyle = colors.background
-  ctx.fillRect(0, 0, width, height)
-
-  // 绘制极简网格
-  ctx.strokeStyle = colors.grid
-  ctx.lineWidth = 0.5
-
-  // 只绘制几条关键的网格线
-  for (let i = 1; i <= 3; i++) {
-    const y = padding + (chartHeight / 4) * i
-    ctx.beginPath()
-    ctx.moveTo(padding, y)
-    ctx.lineTo(width - padding, y)
-    ctx.stroke()
-  }
-
-  // 绘制柱状图函数
-  const drawBars = (data: number[], color: string, alpha = 1) => {
-    const barWidth = chartWidth / data.length
-
-    for (const [i, datum] of data.entries()) {
-      const barHeight = (datum / maxVal) * chartHeight
-      const x = padding + i * barWidth
-      const y = height - padding - barHeight
-
-      // 创建渐变
-      const gradient = ctx.createLinearGradient(0, y, 0, height - padding)
-
-      // 正确处理颜色字符串转换
-      let topColor: string
-      let bottomColor: string
-
-      if (color.startsWith('rgba')) {
-        // 如果已经是 rgba 格式，替换最后的透明度值
-        topColor = color.replace(/[\d.]+\)$/, `${alpha})`)
-        bottomColor = color.replace(/[\d.]+\)$/, `${alpha * 0.1})`)
-      } else if (color.startsWith('rgb')) {
-        // 如果是 rgb 格式，转换为 rgba
-        topColor = color.replace('rgb', 'rgba').replace(')', `, ${alpha})`)
-        bottomColor = color.replace('rgb', 'rgba').replace(')', `, ${alpha * 0.1})`)
-      } else {
-        // 其他格式直接使用
-        topColor = color
-        bottomColor = color
-      }
-
-      gradient.addColorStop(0, topColor)
-      gradient.addColorStop(1, bottomColor)
-
-      ctx.fillStyle = gradient
-      ctx.fillRect(x, y, barWidth * 0.8, barHeight)
+  // 1px-wide gradient strips, stretched per bar via drawImage — avoids
+  // creating a gradient per bar per animation frame
+  const strips = {} as Record<Channel, HTMLCanvasElement>
+  for (const channel of CHANNELS) {
+    const strip = document.createElement('canvas')
+    strip.width = 1
+    strip.height = Math.max(1, Math.round(height * dpr))
+    const stripCtx = strip.getContext('2d')
+    if (!stripCtx) {
+      return null
     }
+    const alpha = CHANNEL_ALPHA[channel]
+    const gradient = stripCtx.createLinearGradient(0, 0, 0, strip.height)
+    gradient.addColorStop(0, `rgba(${CHANNEL_RGB[channel]}, ${alpha})`)
+    gradient.addColorStop(1, `rgba(${CHANNEL_RGB[channel]}, ${alpha * 0.1})`)
+    stripCtx.fillStyle = gradient
+    stripCtx.fillRect(0, 0, 1, strip.height)
+    strips[channel] = strip
   }
 
-  // 先绘制亮度通道作为背景
-  drawBars(histogram.luminance, colors.luminance, 0.3)
-
-  // 设置混合模式
-  ctx.globalCompositeOperation = 'screen'
-
-  // 绘制 RGB 通道
-  drawBars(histogram.red, colors.red, 0.7)
-  drawBars(histogram.green, colors.green, 0.7)
-  drawBars(histogram.blue, colors.blue, 0.7)
-
-  // 重置混合模式
-  ctx.globalCompositeOperation = 'source-over'
-
-  // 绘制边框
-  ctx.strokeStyle = colors.border
-  ctx.lineWidth = 1
-  ctx.strokeRect(padding - 0.5, padding - 0.5, chartWidth + 1, chartHeight + 1)
-
-  // 添加顶部高光
   const highlightGradient = ctx.createLinearGradient(0, 0, 0, height * 0.2)
   highlightGradient.addColorStop(0, 'rgba(255, 255, 255, 0.03)')
   highlightGradient.addColorStop(1, 'rgba(255, 255, 255, 0)')
 
-  ctx.fillStyle = highlightGradient
-  ctx.fillRect(0, 0, width, height * 0.2)
+  return (histogram: HistogramBins) => {
+    ctx.clearRect(0, 0, width, height)
+
+    ctx.fillStyle = 'rgba(28, 28, 30, 0.95)'
+    ctx.fillRect(0, 0, width, height)
+
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.04)'
+    ctx.lineWidth = 0.5
+    for (let i = 1; i <= 3; i++) {
+      const y = (height / 4) * i
+      ctx.beginPath()
+      ctx.moveTo(0, y)
+      ctx.lineTo(width, y)
+      ctx.stroke()
+    }
+
+    const maxVal = Math.max(...histogram.luminance, ...histogram.red, ...histogram.green, ...histogram.blue)
+
+    if (maxVal > 0) {
+      const barWidth = width / BIN_COUNT
+      const drawBars = (data: number[], strip: HTMLCanvasElement) => {
+        for (const [i, datum] of data.entries()) {
+          const barHeight = (datum / maxVal) * height
+          if (barHeight <= 0) {
+            continue
+          }
+          ctx.drawImage(strip, i * barWidth, height - barHeight, barWidth * 0.8, barHeight)
+        }
+      }
+
+      drawBars(histogram.luminance, strips.luminance)
+
+      ctx.globalCompositeOperation = 'screen'
+      drawBars(histogram.red, strips.red)
+      drawBars(histogram.green, strips.green)
+      drawBars(histogram.blue, strips.blue)
+      ctx.globalCompositeOperation = 'source-over'
+    }
+
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)'
+    ctx.lineWidth = 1
+    ctx.strokeRect(-0.5, -0.5, width + 1, height + 1)
+
+    ctx.fillStyle = highlightGradient
+    ctx.fillRect(0, 0, width, height * 0.2)
+  }
 }
 
 export const HistogramChart: FC<{
@@ -182,14 +142,15 @@ export const HistogramChart: FC<{
   className?: string
 }> = ({ thumbnailUrl, className = '' }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null)
-  const previousHistogramRef = useRef<CompressedHistogramData | null>(null)
+  const previousHistogramRef = useRef<HistogramBins | null>(null)
   const animationRef = useRef<number | null>(null)
-  const [histogram, setHistogram] = useState<CompressedHistogramData | null>(null)
+  const [histogram, setHistogram] = useState<HistogramBins | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
   const { t } = useTranslation()
 
   useEffect(() => {
+    let cancelled = false
     setLoading(true)
     setError(false)
 
@@ -198,6 +159,10 @@ export const HistogramChart: FC<{
     img.src = thumbnailUrl
 
     img.onload = () => {
+      if (cancelled) {
+        return
+      }
+
       const canvas = document.createElement('canvas')
       const ctx = canvas.getContext('2d', { willReadFrequently: true })
       if (!ctx) {
@@ -206,11 +171,10 @@ export const HistogramChart: FC<{
         return
       }
 
-      // 为了更好的性能，缩放图片到合适的大小
       const maxSize = 300
-      const scale = Math.min(maxSize / img.naturalWidth, maxSize / img.naturalHeight)
-      const scaledWidth = Math.floor(img.naturalWidth * scale)
-      const scaledHeight = Math.floor(img.naturalHeight * scale)
+      const scale = Math.min(1, maxSize / img.naturalWidth, maxSize / img.naturalHeight)
+      const scaledWidth = Math.max(1, Math.floor(img.naturalWidth * scale))
+      const scaledHeight = Math.max(1, Math.floor(img.naturalHeight * scale))
 
       canvas.width = scaledWidth
       canvas.height = scaledHeight
@@ -218,57 +182,65 @@ export const HistogramChart: FC<{
 
       try {
         const imageData = ctx.getImageData(0, 0, scaledWidth, scaledHeight)
-        const calculatedHistogram = calculateHistogram(imageData)
-        setHistogram(calculatedHistogram)
-      } catch (e) {
+        setHistogram(calculateHistogram(imageData))
+      }
+      catch (e) {
         console.error('Error calculating histogram:', e)
         setError(true)
-      } finally {
+      }
+      finally {
         setLoading(false)
       }
     }
 
     img.onerror = () => {
+      if (cancelled) {
+        return
+      }
       setError(true)
       setLoading(false)
+    }
+
+    return () => {
+      cancelled = true
+      img.onload = null
+      img.onerror = null
     }
   }, [thumbnailUrl])
 
   useEffect(() => {
-    if (!histogram || !canvasRef.current) return
+    if (!histogram || !canvasRef.current) {
+      return
+    }
 
-    const canvas = canvasRef.current
+    const draw = createRenderer(canvasRef.current)
+    if (!draw) {
+      return
+    }
 
-    // Cancel any ongoing animation before starting a new one
     if (animationRef.current) {
       cancelAnimationFrame(animationRef.current)
       animationRef.current = null
     }
 
-    // If we don't have a previous histogram, draw immediately and set baseline
-    if (!previousHistogramRef.current) {
-      drawHistogram(canvas, histogram)
+    const prev = previousHistogramRef.current
+    if (!prev) {
+      draw(histogram)
       previousHistogramRef.current = histogram
       return
     }
 
     const startAt = performance.now()
-    const prev = previousHistogramRef.current
-
-    // Spring parameters (slightly underdamped for natural feel)
-    const frequency = 8 // rad/s, controls oscillation speed (lower = smoother)
-    const damping = 7 // higher = faster decay, tuned for subtle bounce
+    const frequency = 8
+    const damping = 7
     const restDelta = 0.001
     const maxMs = 1200
 
+    // analytic step response of an underdamped second-order system,
+    // clamped to [0, 1] to avoid overshoot drawing artifacts
     const springProgress = (tSec: number) => {
-      // Analytic solution for underdamped second-order system step response
-      // y(t) = 1 - e^{-d t} (cos(w t) + (d/w) sin(w t))
-      const w = frequency
-      const d = damping
-      const exp = Math.exp(-d * tSec)
-      const value = 1 - exp * (Math.cos(w * tSec) + (d / w) * Math.sin(w * tSec))
-      // Clamp to [0, 1] to avoid overshoot drawing artifacts
+      const exp = Math.exp(-damping * tSec)
+      const value = 1 - exp * (Math.cos(frequency * tSec) + (damping / frequency) * Math.sin(frequency * tSec))
       return Math.max(0, Math.min(1, value))
     }
 
@@ -276,22 +248,20 @@ export const HistogramChart: FC<{
 
     const frame = (now: number) => {
       const elapsedMs = now - startAt
-      const tSec = elapsedMs / 1000
-      const eased = springProgress(tSec)
+      const eased = springProgress(elapsedMs / 1000)
 
-      const interpolated: CompressedHistogramData = {
+      draw({
         red: lerpArray(prev.red, histogram.red, eased),
         green: lerpArray(prev.green, histogram.green, eased),
         blue: lerpArray(prev.blue, histogram.blue, eased),
         luminance: lerpArray(prev.luminance, histogram.luminance, eased),
-      }
-
-      drawHistogram(canvas, interpolated)
+      })
 
       const done = Math.abs(1 - eased) < restDelta || elapsedMs >= maxMs
       if (!done) {
         animationRef.current = requestAnimationFrame(frame)
-      } else {
+      }
+      else {
         previousHistogramRef.current = histogram
         animationRef.current = null
       }

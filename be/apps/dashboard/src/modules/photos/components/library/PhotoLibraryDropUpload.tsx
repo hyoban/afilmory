@@ -10,7 +10,8 @@ import { useShallow } from 'zustand/shallow'
 
 import { LinearBorderPanel } from '~/components/common/LinearBorderPanel'
 
-import { usePhotoLibraryStore } from './PhotoLibraryProvider'
+import { usePhotoLibraryStore } from './photo-library'
+import { getActivePhotoUploadStore } from './photo-upload/active-store'
 import { PhotoUploadConfirmModal } from './PhotoUploadConfirmModal'
 import type { PhotoUploadRequestOptions } from './upload.types'
 
@@ -18,14 +19,50 @@ const photoLibraryDndKeys = {
   title: 'photos.library.dnd.title',
   description: 'photos.library.dnd.description',
   unsupported: 'photos.library.dnd.unsupported',
+  disabled: 'photos.library.dnd.disabled',
+  added: 'photos.library.dnd.added',
+  allDuplicate: 'photos.library.dnd.allDuplicate',
 } as const satisfies Record<string, I18nKeys>
 
 function isAcceptedPhotoAsset(file: File) {
-  if (file.type.startsWith('image/')) return true
-  if (file.type === 'video/quicktime') return true
+  if (file.type.startsWith('image/')) {
+    return true
+  }
+  if (file.type === 'video/quicktime') {
+    return true
+  }
 
   const name = file.name.toLowerCase()
   return name.endsWith('.heic') || name.endsWith('.heif') || name.endsWith('.hif') || name.endsWith('.mov')
+}
+
+type Translate = (key: I18nKeys, options?: { count?: number }) => string
+
+function tryRouteToActiveUpload(files: File[], t: Translate): boolean {
+  const store = getActivePhotoUploadStore()
+  if (!store) {
+    return false
+  }
+
+  const { phase, addFiles } = store.getState()
+
+  if (phase === 'uploading' || phase === 'processing') {
+    toast.error(t(photoLibraryDndKeys.disabled))
+    return true
+  }
+
+  if (phase !== 'review') {
+    return false
+  }
+
+  const { added, skipped } = addFiles(files)
+  if (added > 0) {
+    toast.success(t(photoLibraryDndKeys.added, { count: added }))
+  }
+  else if (skipped > 0) {
+    toast.info(t(photoLibraryDndKeys.allDuplicate, { count: skipped }))
+  }
+  return true
 }
 
 export function PhotoLibraryDropUpload() {
@@ -75,7 +112,7 @@ export function PhotoLibraryDropUpload() {
   }, [])
 
   const { availableTags, uploadAssets } = usePhotoLibraryStore(
-    useShallow((state) => ({
+    useShallow(state => ({
       availableTags: state.availableTags,
       uploadAssets: state.uploadAssets,
     })),
@@ -91,7 +128,9 @@ export function PhotoLibraryDropUpload() {
   useEffect(() => {
     const hasFileDrag = (event: DragEvent) => {
       const types = event.dataTransfer?.types
-      if (!types) return false
+      if (!types) {
+        return false
+      }
       return Array.from(types).includes('Files')
     }
 
@@ -100,21 +139,31 @@ export function PhotoLibraryDropUpload() {
     }
 
     const handleDragEnter = (event: DragEvent) => {
-      if (!hasFileDrag(event)) return
-      if (isDraggingFilesRef.current) return
+      if (!hasFileDrag(event)) {
+        return
+      }
+      if (isDraggingFilesRef.current) {
+        return
+      }
       setIsDraggingFiles(true)
     }
 
     const handleDragLeave = (_event: DragEvent) => {
-      if (!isDraggingFilesRef.current) return
+      if (!isDraggingFilesRef.current) {
+        return
+      }
       const event = _event as DragEvent & { relatedTarget?: EventTarget | null }
       const isLeavingWindow = event.relatedTarget == null
-      if (!isLeavingWindow) return
+      if (!isLeavingWindow) {
+        return
+      }
       resetDraggingState()
     }
 
     const handleDragOver = (event: DragEvent) => {
-      if (!hasFileDrag(event)) return
+      if (!hasFileDrag(event)) {
+        return
+      }
       event.preventDefault()
       if (!isDraggingFilesRef.current) {
         setIsDraggingFiles(true)
@@ -125,19 +174,29 @@ export function PhotoLibraryDropUpload() {
     }
 
     const handleDrop = (event: DragEvent) => {
-      if (!hasFileDrag(event)) return
+      if (!hasFileDrag(event)) {
+        return
+      }
       event.preventDefault()
       resetDraggingState()
 
       const files = event.dataTransfer?.files
-      if (!files || files.length === 0) return
+      if (!files || files.length === 0) {
+        return
+      }
 
       const latest = latestRef.current
-      if (!latest) return
+      if (!latest) {
+        return
+      }
 
-      const selectedFiles = Array.from(files).filter((file) => isAcceptedPhotoAsset(file))
+      const selectedFiles = Array.from(files).filter(file => isAcceptedPhotoAsset(file))
       if (selectedFiles.length === 0) {
         toast.error(t(photoLibraryDndKeys.unsupported))
+        return
+      }
+
+      if (tryRouteToActiveUpload(selectedFiles, t)) {
         return
       }
 
@@ -161,7 +220,9 @@ export function PhotoLibraryDropUpload() {
     window.addEventListener('dragend', resetDraggingState, true)
 
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') return
+      if (event.key !== 'Escape') {
+        return
+      }
       resetDraggingState()
     }
 
@@ -170,7 +231,9 @@ export function PhotoLibraryDropUpload() {
     }
 
     const handleVisibilityChange = () => {
-      if (!document.hidden) return
+      if (!document.hidden) {
+        return
+      }
       resetDraggingState()
     }
 

@@ -8,6 +8,7 @@ import { getViewer, setViewer } from '~/atoms/viewer'
 import { siteConfig } from '~/config'
 import { useMobile } from '~/hooks/useMobile'
 import { usePhotos } from '~/hooks/usePhotoViewer'
+import { normalizeDateRange } from '~/modules/gallery/dateRangeUtils'
 import { PhotosRoot } from '~/modules/gallery/PhotosRoot'
 import { PhotosProvider } from '~/providers/photos-provider'
 
@@ -41,7 +42,7 @@ export const Component = () => {
             <PhotosRoot />
           </ScrollElementContext>
         ) : (
-          <ScrollArea rootClassName={'h-svh w-full'} viewportClassName="size-full" scrollbarClassName="mt-12">
+          <ScrollArea rootClassName="h-svh w-full" viewportClassName="size-full" scrollbarClassName="mt-12">
             <PhotosRoot />
           </ScrollArea>
         )}
@@ -61,8 +62,8 @@ export const Component = () => {
  */
 const useSyncGallerySettingsWithUrl = () => {
   const setGallerySetting = useSetAtom(gallerySettingAtom)
-  const { selectedTags, selectedCameras, selectedLenses, selectedRatings, tagFilterMode } =
-    useAtomValue(gallerySettingAtom)
+  const { selectedTags, selectedCameras, selectedLenses, selectedRatings, selectedDateRange, tagFilterMode }
+    = useAtomValue(gallerySettingAtom)
   const [searchParams, setSearchParams] = useSearchParams()
 
   // Track if initial restore is done
@@ -94,14 +95,16 @@ const useSyncGallerySettingsWithUrl = () => {
     const lensesFromSearchParams = searchParams.get('lenses')?.split(',')
     const ratingsFromSearchParams = searchParams.get('rating') ? Number(searchParams.get('rating')) : null
     const tagModeFromSearchParams = searchParams.get('tag_mode') as 'union' | 'intersection' | null
+    const dateRangeFromSearchParams = normalizeDateRange(searchParams.get('from'), searchParams.get('to'))
 
     // Always update state from URL (URL is source of truth for filters)
-    setGallerySetting((prev) => ({
+    setGallerySetting(prev => ({
       ...prev,
       selectedTags: tagsFromSearchParams || [],
       selectedCameras: camerasFromSearchParams || [],
       selectedLenses: lensesFromSearchParams || [],
       selectedRatings: ratingsFromSearchParams,
+      selectedDateRange: dateRangeFromSearchParams,
       tagFilterMode: tagModeFromSearchParams || 'union',
     }))
 
@@ -111,13 +114,17 @@ const useSyncGallerySettingsWithUrl = () => {
   // Sync state changes to URL
   useEffect(() => {
     // Wait for initial restore before syncing state to URL
-    if (!isInitializedRef.current) return
+    if (!isInitializedRef.current) {
+      return
+    }
 
     const tags = selectedTags.join(',')
     const cameras = selectedCameras.join(',')
     const lenses = selectedLenses.join(',')
     const rating = selectedRatings?.toString() ?? ''
     const tagMode = tagFilterMode === 'union' ? '' : tagFilterMode
+    const fromParam = selectedDateRange?.from ?? ''
+    const toParam = selectedDateRange?.to ?? ''
 
     setSearchParams(
       (currentParams) => {
@@ -126,14 +133,18 @@ const useSyncGallerySettingsWithUrl = () => {
         const currentLenses = currentParams.get('lenses') || ''
         const currentRating = currentParams.get('rating') || ''
         const currentTagMode = currentParams.get('tag_mode') || ''
+        const currentFrom = currentParams.get('from') || ''
+        const currentTo = currentParams.get('to') || ''
 
         // Check if anything has changed
         if (
-          currentTags === tags &&
-          currentCameras === cameras &&
-          currentLenses === lenses &&
-          currentRating === rating &&
-          currentTagMode === tagMode
+          currentTags === tags
+          && currentCameras === cameras
+          && currentLenses === lenses
+          && currentRating === rating
+          && currentTagMode === tagMode
+          && currentFrom === fromParam
+          && currentTo === toParam
         ) {
           return currentParams
         }
@@ -145,32 +156,51 @@ const useSyncGallerySettingsWithUrl = () => {
 
         if (tags) {
           newer.set('tags', tags)
-        } else {
+        }
+        else {
           newer.delete('tags')
         }
 
         if (cameras) {
           newer.set('cameras', cameras)
-        } else {
+        }
+        else {
           newer.delete('cameras')
         }
 
         if (lenses) {
           newer.set('lenses', lenses)
-        } else {
+        }
+        else {
           newer.delete('lenses')
         }
 
         if (rating) {
           newer.set('rating', rating)
-        } else {
+        }
+        else {
           newer.delete('rating')
         }
 
         if (tagMode) {
           newer.set('tag_mode', tagMode)
-        } else {
+        }
+        else {
           newer.delete('tag_mode')
+        }
+
+        if (fromParam) {
+          newer.set('from', fromParam)
+        }
+        else {
+          newer.delete('from')
+        }
+
+        if (toParam) {
+          newer.set('to', toParam)
+        }
+        else {
+          newer.delete('to')
         }
 
         // Update last synced URL
@@ -180,7 +210,15 @@ const useSyncGallerySettingsWithUrl = () => {
       },
       { replace: true },
     ) // Use replace to avoid polluting history for filter changes
-  }, [selectedTags, selectedCameras, selectedLenses, selectedRatings, tagFilterMode, setSearchParams])
+  }, [
+    selectedTags,
+    selectedCameras,
+    selectedLenses,
+    selectedRatings,
+    selectedDateRange,
+    tagFilterMode,
+    setSearchParams,
+  ])
 }
 
 /**
@@ -214,13 +252,13 @@ const useSyncViewerWithUrl = () => {
 
     if (isPhotoRoute && photoId) {
       // URL says viewer should be open
-      const targetIndex = photos.findIndex((p) => p.id === photoId)
+      const targetIndex = photos.findIndex(p => p.id === photoId)
 
       if (
-        targetIndex !== -1 && // Open viewer if closed, or update photo if different
-        (!currentViewer.isOpen || currentViewer.photoId !== photoId)
+        targetIndex !== -1 // Open viewer if closed, or update photo if different
+        && (!currentViewer.isOpen || currentViewer.photoId !== photoId)
       ) {
-        setViewer((prev) => ({
+        setViewer(prev => ({
           ...prev,
           isOpen: true,
           openInstanceId: prev.isOpen ? prev.openInstanceId : prev.openInstanceId + 1,
@@ -233,10 +271,11 @@ const useSyncViewerWithUrl = () => {
         // Prevent background scroll
         document.body.style.overflow = 'hidden'
       }
-    } else {
+    }
+    else {
       // URL says viewer should be closed
       if (currentViewer.isOpen) {
-        setViewer((prev) => ({
+        setViewer(prev => ({
           ...prev,
           isOpen: false,
           pendingCloseInstanceId: null,
@@ -259,17 +298,27 @@ const useSyncViewerWithUrl = () => {
 const useSyncViewerCloseShortcut = () => {
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') return
+      if (event.key !== 'Escape') {
+        return
+      }
 
       const currentViewer = getViewer()
-      if (!currentViewer.isOpen || !currentViewer.openInstanceId) return
-      if (currentViewer.pendingCloseInstanceId === currentViewer.openInstanceId) return
+      if (!currentViewer.isOpen || !currentViewer.openInstanceId) {
+        return
+      }
+      if (currentViewer.pendingCloseInstanceId === currentViewer.openInstanceId) {
+        return
+      }
 
       event.preventDefault()
 
       setViewer((prev) => {
-        if (!prev.isOpen || !prev.openInstanceId) return prev
-        if (prev.pendingCloseInstanceId === prev.openInstanceId) return prev
+        if (!prev.isOpen || !prev.openInstanceId) {
+          return prev
+        }
+        if (prev.pendingCloseInstanceId === prev.openInstanceId) {
+          return prev
+        }
 
         return {
           ...prev,

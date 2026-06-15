@@ -44,6 +44,7 @@ interface PhotoViewerProps {
   onDragDismiss?: (frame: AnimationFrameRect) => void
   onIndexChange: (index: number) => void
   triggerElement: HTMLElement | null
+  disableEntryTransition?: boolean
   onExitComplete?: () => void
 }
 
@@ -61,6 +62,7 @@ export const PhotoViewer = ({
   onDragDismiss,
   onIndexChange,
   triggerElement,
+  disableEntryTransition = false,
   onExitComplete,
 }: PhotoViewerProps) => {
   const { t } = useTranslation()
@@ -71,6 +73,7 @@ export const PhotoViewer = ({
   const [isDesktopInspectorVisible, setIsDesktopInspectorVisible] = useState(!isMobile)
   const [currentBlobSrc, setCurrentBlobSrc] = useState<string | null>(null)
   const [dragDismissExitFrame, setDragDismissExitFrame] = useState<AnimationFrameRect | null>(null)
+  const [entrySuppressedPhotoId] = useState(() => (disableEntryTransition ? (photos[currentIndex]?.id ?? null) : null))
 
   const currentPhoto = photos[currentIndex]
   const {
@@ -87,6 +90,7 @@ export const PhotoViewer = ({
     handleEntryTransitionComplete,
     handleExitAnimationComplete,
   } = useViewerTransitions({
+    disableEntryTransition,
     exitOverrideFrame: dragDismissExitFrame,
     isOpen,
     layout: AFILMORY_VIEWER_FRAME_LAYOUT,
@@ -316,7 +320,7 @@ export const PhotoViewer = ({
         {shouldRenderBackdrop && (
           <m.div
             key="photo-viewer-backdrop"
-            initial={{ opacity: 0 }}
+            initial={disableEntryTransition ? false : { opacity: 0 }}
             animate={{ opacity: isOpen ? 1 : 0 }}
             exit={{ opacity: 0 }}
             transition={Spring.presets.snappy}
@@ -335,7 +339,7 @@ export const PhotoViewer = ({
         {shouldRenderThumbhash && (
           <m.div
             key={`${currentPhoto.id}-thumbhash`}
-            initial={{ opacity: 0 }}
+            initial={disableEntryTransition ? false : { opacity: 0 }}
             animate={{ opacity: isOpen ? 1 : 0 }}
             exit={{ opacity: 0 }}
             transition={Spring.presets.snappy}
@@ -385,7 +389,7 @@ export const PhotoViewer = ({
                   >
                     {/* 顶部工具栏 */}
                     <m.div
-                      initial={{ opacity: 0 }}
+                      initial={disableEntryTransition ? false : { opacity: 0 }}
                       animate={{ opacity: isViewerContentVisible ? 1 : 0 }}
                       exit={{ opacity: 0 }}
                       transition={Spring.presets.snappy}
@@ -504,6 +508,9 @@ export const PhotoViewer = ({
                               isCurrentImage,
                               isEntryImageCatchupVisible: shouldShowEntryImageCatchup,
                             })
+                            const suppressSlideEntry
+                              = (isCurrentImage && entryTransition?.variant === 'entry')
+                                || photo.id === entrySuppressedPhotoId
                             return (
                               <SwiperSlide
                                 key={photo.id}
@@ -512,22 +519,10 @@ export const PhotoViewer = ({
                               >
                                 <ReactionRail photoId={photo.id} />
                                 <m.div
-                                  initial={
-                                    isCurrentImage && entryTransition?.variant === 'entry'
-                                      ? false
-                                      : { opacity: 0.5, scale: 0.95 }
-                                  }
-                                  animate={
-                                    isCurrentImage && entryTransition?.variant === 'entry'
-                                      ? undefined
-                                      : { opacity: 1, scale: 1 }
-                                  }
+                                  initial={suppressSlideEntry ? false : { opacity: 0.5, scale: 0.95 }}
+                                  animate={suppressSlideEntry ? undefined : { opacity: 1, scale: 1 }}
                                   exit={{ opacity: 0, scale: 0.95 }}
-                                  transition={
-                                    isCurrentImage && entryTransition?.variant === 'entry'
-                                      ? undefined
-                                      : Spring.presets.smooth
-                                  }
+                                  transition={suppressSlideEntry ? undefined : Spring.presets.smooth}
                                   className="relative flex h-full w-full items-center justify-center"
                                   style={{
                                     opacity: hideCurrentImage ? 0 : 1,
@@ -628,6 +623,7 @@ export const PhotoViewer = ({
                         photos={photos}
                         onIndexChange={onIndexChange}
                         visible={isViewerContentVisible}
+                        disableEntryTransition={disableEntryTransition}
                       />
                     </Suspense>
                   </m.div>

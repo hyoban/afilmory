@@ -7,11 +7,11 @@ import { LinearBorderPanel } from '~/components/common/LinearBorderPanel'
 import { AutoSelect } from '../AutoSelect'
 import { usePhotoUploadStore } from '../store'
 import { UploadFileList } from '../UploadFileList'
-import { formatBytes } from '../utils'
+import { formatBytes, readRecentTags } from '../utils'
 
 export function ReviewStep() {
   const { filesCount, totalSize, hasMovFile, unmatchedMovFiles, availableTags, selectedTags } = usePhotoUploadStore(
-    useShallow((state) => ({
+    useShallow(state => ({
       filesCount: state.files.length,
       totalSize: state.totalSize,
       hasMovFile: state.hasMovFile,
@@ -21,21 +21,30 @@ export function ReviewStep() {
     })),
   )
   const { uploadEntries, progress } = usePhotoUploadStore(
-    useShallow((state) => ({
+    useShallow(state => ({
       uploadEntries: state.uploadEntries,
       progress: state.totalSize === 0 ? 0 : Math.min(1, state.uploadedBytes / state.totalSize),
     })),
   )
 
-  const beginUpload = usePhotoUploadStore((state) => state.beginUpload)
-  const closeModal = usePhotoUploadStore((state) => state.closeModal)
-  const setSelectedTags = usePhotoUploadStore((state) => state.setSelectedTags)
-  const removeEntry = usePhotoUploadStore((state) => state.removeEntry)
+  const beginUpload = usePhotoUploadStore(state => state.beginUpload)
+  const closeModal = usePhotoUploadStore(state => state.closeModal)
+  const setSelectedTags = usePhotoUploadStore(state => state.setSelectedTags)
+  const removeEntry = usePhotoUploadStore(state => state.removeEntry)
 
-  const tagOptions = useMemo(
-    () => availableTags.map((tag) => ({ label: tag, value: tag.toLowerCase() })),
-    [availableTags],
-  )
+  const recentTags = useMemo(() => readRecentTags(), [])
+  const tagOptions = useMemo(() => {
+    const options = availableTags.map(tag => ({ label: tag, value: tag.toLowerCase() }))
+    if (recentTags.length === 0) {
+      return options
+    }
+    const priority = new Map(recentTags.map((tag, index) => [tag, index]))
+    return options.toSorted((a, b) => {
+      const aIndex = priority.get(a.value) ?? Number.POSITIVE_INFINITY
+      const bIndex = priority.get(b.value) ?? Number.POSITIVE_INFINITY
+      return aIndex - bIndex
+    })
+  }, [availableTags, recentTags])
   const hasUnmatched = unmatchedMovFiles.length > 0
 
   return (
@@ -43,7 +52,14 @@ export function ReviewStep() {
       <div className="space-y-2">
         <h2 className="text-text text-lg font-semibold">确认上传这些文件？</h2>
         <p className="text-text-tertiary text-sm">
-          共选择 {filesCount} 项，预计占用 {formatBytes(totalSize)}。
+          共选择
+          {' '}
+          {filesCount}
+          {' '}
+          项，预计占用
+          {' '}
+          {formatBytes(totalSize)}
+          。
         </p>
       </div>
 
@@ -51,7 +67,7 @@ export function ReviewStep() {
         <LinearBorderPanel className="border border-rose-400/40 bg-rose-500/5 px-3 py-2 text-xs text-rose-300">
           <p>以下 MOV 文件缺少同名的图像文件，请补齐后再尝试上传：</p>
           <ul className="mt-1 space-y-1">
-            {unmatchedMovFiles.map((file) => (
+            {unmatchedMovFiles.map(file => (
               <li key={`${file.name}-${file.lastModified}`}>{file.name}</li>
             ))}
           </ul>

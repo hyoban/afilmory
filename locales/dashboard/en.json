@@ -256,6 +256,8 @@
   "photos.library.delete.option.description": "When checked, the remote originals and thumbnails will be removed as well.",
   "photos.library.delete.option.title": "Also delete storage files",
   "photos.library.delete.title": "Delete this asset?",
+  "photos.library.dnd.added": "Added {{count}} file(s) to the current upload.",
+  "photos.library.dnd.allDuplicate": "{{count}} file(s) already added; nothing new.",
   "photos.library.dnd.description": "Release to review and start uploading.",
   "photos.library.dnd.disabled": "Uploading is in progress. Please try again later.",
   "photos.library.dnd.title": "Drop files to upload",

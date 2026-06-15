@@ -4,6 +4,7 @@ import { Provider } from 'jotai'
 import { domMax, LazyMotion, MotionConfig } from 'motion/react'
 import type { FC, PropsWithChildren } from 'react'
 
+import { HydrationEndDetector } from '~/components/common/HydrationEndDetector'
 import { withCloud } from '~/lib/hoc/withCloud'
 import { jotaiStore } from '~/lib/jotai'
 
@@ -25,6 +26,7 @@ export const RootProviders: FC<PropsWithChildren> = ({ children }) => {
             <CloudSessionProvider />
             <EventProvider />
             <StableRouterProvider />
+            <HydrationEndDetector />
 
             <ContextMenuProvider />
             <I18nProvider>{children}</I18nProvider>

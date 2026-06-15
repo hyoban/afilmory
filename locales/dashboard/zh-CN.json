@@ -205,6 +205,8 @@
   "photos.library.delete.option.description": "勾选后会删除远程原件与缩略图。",
   "photos.library.delete.option.title": "同时删除存储文件",
   "photos.library.delete.title": "确定要删除该素材？",
+  "photos.library.dnd.added": "已加入 {{count}} 个文件到当前上传。",
+  "photos.library.dnd.allDuplicate": "{{count}} 个文件已存在，未添加。",
   "photos.library.dnd.description": "松开后进入上传流程。",
   "photos.library.dnd.disabled": "正在上传，请稍后再试。",
   "photos.library.dnd.title": "拖放文件以上传",
