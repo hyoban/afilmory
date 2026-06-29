@@ -23,6 +23,7 @@ import type { Swiper as SwiperType } from 'swiper'
 import { Navigation, Virtual } from 'swiper/modules'
 import { Swiper, SwiperSlide } from 'swiper/react'
 
+import { injectConfig } from '~/config'
 import { useMobile } from '~/hooks/useMobile'
 import type { LoadingIndicatorRef } from '~/modules/inspector/LoadingIndicator'
 import { LoadingIndicator } from '~/modules/inspector/LoadingIndicator'
@@ -31,6 +32,7 @@ import { ShareModal } from '~/modules/social/ShareModal'
 import type { PhotoManifest } from '~/types/photo'
 
 import { ReactionRail } from '../social'
+import { canUsePhotoReactions } from '../social/reaction-availability'
 import { resolvePhotoViewerEntryState, shouldHideCurrentViewerImage } from './entry-animation-state'
 import { GalleryThumbnail } from './GalleryThumbnail'
 import { MobilePhotoInspectorSheet } from './MobilePhotoInspectorSheet'
@@ -67,6 +69,7 @@ export const PhotoViewer = ({
 }: PhotoViewerProps) => {
   const { t } = useTranslation()
   const isMobile = useMobile()
+  const showPhotoReactions = canUsePhotoReactions(injectConfig)
   const swiperRef = useRef<SwiperType | null>(null)
   const [isImageZoomed, setIsImageZoomed] = useState(false)
   const [isCurrentImageVisualReady, setIsCurrentImageVisualReady] = useState(false)
@@ -517,7 +520,7 @@ export const PhotoViewer = ({
                                 className="flex items-center justify-center"
                                 virtualIndex={index}
                               >
-                                <ReactionRail photoId={photo.id} />
+                                {showPhotoReactions && <ReactionRail photoId={photo.id} />}
                                 <m.div
                                   initial={suppressSlideEntry ? false : { opacity: 0.5, scale: 0.95 }}
                                   animate={suppressSlideEntry ? undefined : { opacity: 1, scale: 1 }}

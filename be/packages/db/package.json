@@ -19,8 +19,8 @@
   "dependencies": {
     "drizzle-orm": "^0.45.2",
     "nodejs-snowflake": "^2.0.1",
-    "pg": "^8.20.0",
-    "pg-native": "3.7.0",
+    "pg": "^8.21.0",
+    "pg-native": "3.8.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {

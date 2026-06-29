@@ -1,5 +1,7 @@
 import { z } from 'zod'
 
+export { SHARE_EMBED_SCRIPT } from './share-embed-script'
+
 export const ViewDtoSchema = z.object({
   refKey: z.string().min(1),
 })
@@ -54,6 +56,6 @@ export class Client {
     const query = new URLSearchParams(data).toString()
     return (await fetch(this.buildUrl(`/api/reactions?${query}`), {
       method: 'GET',
-    }).then((res) => res.json())) as Promise<AnalysisResponse>
+    }).then(res => res.json())) as Promise<AnalysisResponse>
   }
 }

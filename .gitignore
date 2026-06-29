@@ -34,3 +34,6 @@ apps/web/src/data/.cache/
 functions/
 !apps/web/functions/
 !apps/web/functions/**
+
+# superpowers brainstorming workspace
+.superpowers/

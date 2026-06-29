@@ -183,24 +183,41 @@ html body {
   );
 }
 @layer components {
-  /* Glassmorphic button hover effect */
-  .glassmorphic-btn:hover {
-    background: linear-gradient(
-      to right,
-      color-mix(in srgb, var(--color-accent) 8%, transparent),
-      color-mix(in srgb, var(--color-accent) 5%, transparent)
-    ) !important;
-    color: var(--color-accent) !important;
-  }
-
-  /* Command item hover/selected effect */
   .command-item:hover,
   .command-item.selected {
-    background: linear-gradient(
-      to right,
-      color-mix(in srgb, var(--color-accent) 8%, transparent),
-      color-mix(in srgb, var(--color-accent) 5%, transparent)
-    ) !important;
+    background: var(--color-fill-secondary) !important;
+  }
+
+  .af-bracket {
+    position: absolute;
+    width: 20px;
+    height: 20px;
+    border: 2px solid var(--color-accent);
+    pointer-events: none;
+  }
+  .af-bracket-tl {
+    top: -10px;
+    left: -10px;
+    border-right: 0;
+    border-bottom: 0;
+  }
+  .af-bracket-tr {
+    top: -10px;
+    right: -10px;
+    border-left: 0;
+    border-bottom: 0;
+  }
+  .af-bracket-bl {
+    bottom: -10px;
+    left: -10px;
+    border-right: 0;
+    border-top: 0;
+  }
+  .af-bracket-br {
+    bottom: -10px;
+    right: -10px;
+    border-left: 0;
+    border-top: 0;
   }
 }
 

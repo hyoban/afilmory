@@ -26,18 +26,18 @@
     "consola": "3.4.2",
     "dotenv-expand": "catalog:",
     "execa": "9.6.1",
-    "exiftool-vendored": "35.20.0",
-    "fast-xml-parser": "5.8.0",
+    "exiftool-vendored": "36.0.0",
+    "fast-xml-parser": "5.9.0",
     "heic-convert": "2.1.0",
-    "heic-to": "1.4.3",
+    "heic-to": "1.5.2",
     "nunjucks": "3.2.4",
     "satori": "catalog:",
-    "sharp": "0.34.5",
+    "sharp": "0.35.1",
     "thumbhash": "0.1.1"
   },
   "devDependencies": {
     "@afilmory/utils": "workspace:*",
-    "tsdown": "0.22.0"
+    "tsdown": "0.22.2"
   },
   "publishConfig": {
     "access": "public",
