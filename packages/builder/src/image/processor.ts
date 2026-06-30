@@ -1,3 +1,4 @@
+import { Buffer } from 'node:buffer'
 import path from 'node:path'
 
 import type { ImageMetadata } from '@afilmory/typing'
@@ -7,6 +8,27 @@ import sharp from 'sharp'
 
 import { HEIC_FORMATS } from '../constants/index.js'
 import { getGlobalLoggers } from '../photo/logger-adapter.js'
+
+const HEIC_BRANDS = new Set(['heic', 'heix', 'hevc', 'hevx', 'heis', 'hevm'])
+
+function isHeicLikeBuffer(buffer: Buffer): boolean {
+  if (buffer.length < 12) {
+    return false
+  }
+
+  if (buffer.subarray(4, 8).toString('ascii') !== 'ftyp') {
+    return false
+  }
+
+  const brandWindow = buffer.subarray(8, Math.min(buffer.length, 64)).toString('ascii')
+  for (let index = 0; index <= brandWindow.length - 4; index += 4) {
+    if (HEIC_BRANDS.has(brandWindow.slice(index, index + 4))) {
+      return true
+    }
+  }
+
+  return false
+}
 
 // 获取图片元数据（复用 Sharp 实例）
 export async function getImageMetadataWithSharp(sharpInstance: sharp.Sharp): Promise<ImageMetadata | null> {
@@ -36,7 +58,8 @@ export async function getImageMetadataWithSharp(sharpInstance: sharp.Sharp): Pro
       height,
       format: metadata.format,
     }
-  } catch (error) {
+  }
+  catch (error) {
     log.error('获取图片元数据失败：', error)
     return null
   }
@@ -61,7 +84,8 @@ export async function convertHeicToJpeg(heicBuffer: Buffer): Promise<Buffer> {
     log.success(`HEIC/HEIF 转换完成 (${outputSizeKB}KB, ${duration}ms)`)
 
     return Buffer.from(jpegBuffer)
-  } catch (error) {
+  }
+  catch (error) {
     log.error('HEIC/HEIF 转换失败：', error)
     throw error
   }
@@ -71,9 +95,16 @@ export async function convertHeicToJpeg(heicBuffer: Buffer): Promise<Buffer> {
 export async function preprocessImageBuffer(buffer: Buffer, key: string): Promise<Buffer> {
   const log = getGlobalLoggers().image
   const ext = path.extname(key).toLowerCase()
+  const hasHeicExtension = HEIC_FORMATS.has(ext)
+  const hasHeicContent = isHeicLikeBuffer(buffer)
 
-  // 如果是 HEIC/HEIF 格式，先转换为 JPEG
-  if (HEIC_FORMATS.has(ext)) {
+  if (hasHeicExtension && !hasHeicContent) {
+    log.warn(`文件扩展名为 HEIC/HEIF，但内容不是 HEIC/HEIF，按原始格式处理：${key}`)
+  }
+
+  // 如果内容是 HEIC/HEIF 格式，先转换为 JPEG。这里以文件内容为准，
+  // 避免 .HEIC 里的 JPEG 或 .JPEG 里的 HEIC 被错误处理。
+  if (hasHeicContent) {
     log.info(`检测到 HEIC/HEIF 格式：${key}`)
     return await convertHeicToJpeg(buffer)
   }
@@ -83,7 +114,7 @@ export async function preprocessImageBuffer(buffer: Buffer, key: string): Promis
 }
 
 // BMP 格式
-const BUF_BMP = Buffer.from([0x42, 0x4d])
+const BUF_BMP = Buffer.from([0x42, 0x4D])
 
 export function isBitmap(buf: Buffer): boolean {
   if (buf.length < 2) {
@@ -126,7 +157,8 @@ export async function convertBmpToJpegSharpInstance(bmpBuffer: Buffer): Promise<
     log.success(`BMP 转换完成 (${duration}ms)`)
 
     return sharpInstance
-  } catch (error) {
+  }
+  catch (error) {
     log.error('BMP 转换失败：', error)
     throw error
   }
