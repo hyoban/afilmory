@@ -1,24 +1,9 @@
-import path from 'node:path'
-import process from 'node:process'
-
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 
-import {
-  findRepoRoot,
-  getLocalPhotoRuntimeConfigFromEnv,
-  readBuilderConfigHints,
-  resolvePublicPhotosBasePath,
-} from '~/lib/local-photo-runtime'
+import { resolveLocalPhotoRuntimeConfig } from '~/lib/local-photo-runtime'
 import { LocalPhotoTrashError, trashLocalPhoto } from '~/lib/local-photo-trash'
 import { writeLocalPhotoTrashHmrSuppressMarker } from '~/lib/local-photo-trash-hmr'
-
-interface LocalStorageRuntimeConfig {
-  repoRoot: string | null
-  localBasePath: string
-  manifestPath: string
-  thumbnailsDir: string
-}
 
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null)
@@ -27,13 +12,20 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'photoId is required' }, { status: 400 })
   }
 
-  let config: LocalStorageRuntimeConfig
-  try {
-    config = await resolveLocalStorageRuntimeConfig()
-  }
-  catch (error) {
+  const config = await resolveLocalPhotoRuntimeConfig({
+    allowPublicPhotosFallback: true,
+    requireTrashEnabled: true,
+  }).catch((error: unknown) => {
     const message = error instanceof Error ? error.message : 'Local storage is unavailable'
     return NextResponse.json({ error: message }, { status: 403 })
+  })
+
+  if (config instanceof NextResponse) {
+    return config
+  }
+
+  if (!config) {
+    return NextResponse.json({ error: 'Local storage is unavailable' }, { status: 403 })
   }
 
   try {
@@ -77,36 +69,5 @@ function statusForTrashError(error: LocalPhotoTrashError): number {
     case 'TRASH_TARGET_EXISTS': {
       return 400
     }
-  }
-}
-
-async function resolveLocalStorageRuntimeConfig(): Promise<LocalStorageRuntimeConfig> {
-  const envConfig = getLocalPhotoRuntimeConfigFromEnv()
-  if (envConfig) {
-    if (!envConfig.trashEnabled) {
-      throw new Error('Local photo trash is disabled')
-    }
-
-    return {
-      repoRoot: await findRepoRoot(process.cwd()).catch(() => null),
-      localBasePath: envConfig.localBasePath,
-      manifestPath: envConfig.manifestPath,
-      thumbnailsDir: envConfig.thumbnailsDir,
-    }
-  }
-
-  const repoRoot = await findRepoRoot(process.cwd())
-  const builderConfig = await readBuilderConfigHints(path.join(repoRoot, 'builder.config.ts'))
-  const localBasePath = builderConfig.basePath ?? (await resolvePublicPhotosBasePath(repoRoot))
-
-  if (!builderConfig.isLocalProvider && builderConfig.exists) {
-    throw new Error('Local photo trash is only available when builder storage provider is local')
-  }
-
-  return {
-    repoRoot,
-    localBasePath,
-    manifestPath: path.join(repoRoot, 'apps/web/src/data/photos-manifest.json'),
-    thumbnailsDir: path.join(repoRoot, 'apps/web/public/thumbnails'),
   }
 }

@@ -5,6 +5,8 @@
   "private": true,
   "exports": {
     ".": "./src/index.ts",
+    "./media-signature": "./src/media-signature.ts",
+    "./path-safety": "./src/path-safety.ts",
     "./*": "./src/*"
   },
   "dependencies": {

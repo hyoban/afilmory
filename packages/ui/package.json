@@ -5,6 +5,8 @@
   "private": true,
   "exports": {
     ".": "./src/index.ts",
+    "./keyboard": "./src/keyboard/index.ts",
+    "./keyboard/*": "./src/keyboard/*",
     "./*": "./src/*"
   },
   "peerDependencies": {

@@ -19,6 +19,7 @@
   "dependencies": {
     "@afilmory/og-renderer": "workspace:*",
     "@afilmory/typing": "workspace:*",
+    "@afilmory/utils": "workspace:*",
     "@resvg/resvg-js": "2.6.2",
     "@vingle/bmp-js": "^0.2.5",
     "blurhash": "2.0.5",
@@ -36,7 +37,6 @@
     "thumbhash": "0.1.1"
   },
   "devDependencies": {
-    "@afilmory/utils": "workspace:*",
     "tsdown": "0.22.2"
   },
   "publishConfig": {

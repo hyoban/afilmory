@@ -12,8 +12,7 @@ interface RuntimeManifestCache {
 
 let runtimeManifestCache: RuntimeManifestCache | null = null
 
-export function getRuntimeManifest(): AfilmoryManifest {
-  const manifestPath = process.env.AFILMORY_MANIFEST_PATH?.trim()
+export function getRuntimeManifest(manifestPath = process.env.AFILMORY_MANIFEST_PATH?.trim()): AfilmoryManifest {
   if (!manifestPath) {
     return bundledManifest as AfilmoryManifest
   }
@@ -36,8 +35,8 @@ export function getRuntimeManifest(): AfilmoryManifest {
   return manifest
 }
 
-export function getRuntimeManifestScriptContent(): string {
-  return `window.__MANIFEST__ = ${JSON.stringify(getRuntimeManifest())};`
+export function getRuntimeManifestScriptContent(manifestPath?: string): string {
+  return `window.__MANIFEST__ = ${JSON.stringify(getRuntimeManifest(manifestPath))};`
 }
 
 export function resetRuntimeManifestCache(): void {

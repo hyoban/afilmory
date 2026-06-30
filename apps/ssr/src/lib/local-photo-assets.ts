@@ -3,6 +3,8 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { Readable } from 'node:stream'
 
+import { detectMediaContentType } from '@afilmory/utils/media-signature'
+import { isPathInside } from '@afilmory/utils/path-safety'
 import type { NextRequest } from 'next/server'
 
 export class LocalPhotoAssetError extends Error {
@@ -54,7 +56,7 @@ export async function serveLocalPhotoAsset(request: NextRequest, localBasePath: 
 
   const stat = await fs.stat(filePath)
   const range = request.headers.get('range')
-  const contentType = getContentType(filePath)
+  const contentType = getLocalPhotoContentType(filePath, await readContentProbe(filePath))
   const baseHeaders = {
     'Accept-Ranges': 'bytes',
     'Cache-Control': 'public, max-age=31536000, immutable',
@@ -93,6 +95,10 @@ export async function serveLocalPhotoAsset(request: NextRequest, localBasePath: 
   })
 }
 
+export function getLocalPhotoContentType(filePath: string, buffer?: Uint8Array | null): string {
+  return detectMediaContentType(filePath, buffer)
+}
+
 function decodePhotoPath(pathname: string): string {
   if (!pathname.startsWith('/photos/')) {
     throw new LocalPhotoAssetError('INVALID_PATH', `Invalid local photo path: ${pathname}`)
@@ -115,46 +121,19 @@ function decodePhotoPath(pathname: string): string {
   return parts.join('/')
 }
 
-function isPathInside(parent: string, child: string): boolean {
-  const relative = path.relative(parent, child)
-  return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative))
-}
-
-function getContentType(filePath: string): string {
-  switch (path.extname(filePath).toLowerCase()) {
-    case '.avif': {
-      return 'image/avif'
-    }
-    case '.gif': {
-      return 'image/gif'
-    }
-    case '.heic':
-    case '.heif': {
-      return 'image/heif'
-    }
-    case '.jpg':
-    case '.jpeg': {
-      return 'image/jpeg'
-    }
-    case '.mov': {
-      return 'video/quicktime'
-    }
-    case '.mp4': {
-      return 'video/mp4'
-    }
-    case '.png': {
-      return 'image/png'
-    }
-    case '.tif':
-    case '.tiff': {
-      return 'image/tiff'
-    }
-    case '.webp': {
-      return 'image/webp'
-    }
-    default: {
-      return 'application/octet-stream'
-    }
+async function readContentProbe(filePath: string): Promise<Uint8Array | null> {
+  let handle: fs.FileHandle | null = null
+  try {
+    handle = await fs.open(filePath, 'r')
+    const buffer = new Uint8Array(64)
+    const { bytesRead } = await handle.read(buffer, 0, buffer.length, 0)
+    return buffer.subarray(0, bytesRead)
+  }
+  catch {
+    return null
+  }
+  finally {
+    await handle?.close()
   }
 }
 

@@ -46,6 +46,24 @@ it('getRuntimeManifest reads the manifest from AFILMORY_MANIFEST_PATH and refres
   }
 })
 
+it('getRuntimeManifest can read from an explicit runtime manifest path', async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'afilmory-manifest-'))
+  const manifestPath = path.join(root, 'photos-manifest.json')
+  await fs.writeFile(manifestPath, JSON.stringify(createManifest(['explicit'])))
+  resetRuntimeManifestCache()
+
+  try {
+    assert.deepEqual(
+      getRuntimeManifest(manifestPath).data.map(photo => photo.id),
+      ['explicit'],
+    )
+    assert.match(getRuntimeManifestScriptContent(manifestPath), /explicit/)
+  }
+  finally {
+    resetRuntimeManifestCache()
+  }
+})
+
 function createManifest(ids: string[]): AfilmoryManifest {
   return {
     version: 'v10',

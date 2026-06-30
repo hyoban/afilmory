@@ -1,8 +1,5 @@
-type PromptConfirmShortcutTarget = {
-  isContentEditable?: boolean
-  role?: string | null
-  tagName?: string | null
-}
+import type { ShortcutTarget } from '../keyboard'
+import { getShortcutTarget, isEditableShortcutTarget } from '../keyboard'
 
 type PromptConfirmShortcutInput = {
   altKey?: boolean
@@ -11,22 +8,10 @@ type PromptConfirmShortcutInput = {
   key: string
   metaKey?: boolean
   shiftKey?: boolean
-  target?: PromptConfirmShortcutTarget | null
+  target?: ShortcutTarget | null
 }
 
-const editablePromptTargetTags = new Set(['INPUT', 'SELECT', 'TEXTAREA'])
-
-export const getPromptConfirmShortcutTarget = (target: EventTarget | null): PromptConfirmShortcutTarget | null => {
-  if (!(target instanceof HTMLElement)) {
-    return null
-  }
-
-  return {
-    isContentEditable: target.isContentEditable,
-    role: target.getAttribute('role'),
-    tagName: target.tagName,
-  }
-}
+export const getPromptConfirmShortcutTarget = getShortcutTarget
 
 export const shouldHandlePromptConfirmShortcut = ({
   altKey = false,
@@ -49,10 +34,5 @@ export const shouldHandlePromptConfirmShortcut = ({
     return true
   }
 
-  const tagName = target.tagName?.toUpperCase()
-  if (tagName && editablePromptTargetTags.has(tagName)) {
-    return false
-  }
-
-  return !target.isContentEditable && target.role !== 'textbox'
+  return !isEditableShortcutTarget(target)
 }

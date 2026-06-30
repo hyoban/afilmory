@@ -24,3 +24,28 @@ it('localStorageProvider excludes internal trash directory by default', async ()
     await fs.rm(basePath, { force: true, recursive: true })
   }
 })
+
+it('localStorageProvider rejects keys that escape to sibling directories with the same prefix', async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'afilmory-local-provider-'))
+  const basePath = path.join(root, 'photos')
+  const siblingPath = path.join(root, 'photos-escape')
+  try {
+    await fs.mkdir(basePath, { recursive: true })
+    await fs.mkdir(siblingPath, { recursive: true })
+    await fs.writeFile(path.join(siblingPath, 'secret.jpg'), 'secret')
+
+    const provider = new LocalStorageProvider({ basePath, provider: 'local' })
+
+    assert.equal(await provider.getFile('../photos-escape/secret.jpg'), null)
+  }
+  finally {
+    await fs.rm(root, { force: true, recursive: true })
+  }
+})
+
+it('localStorageProvider fails instead of returning a partial manifest when the base directory cannot be scanned', async () => {
+  const basePath = path.join(os.tmpdir(), `afilmory-missing-${Date.now()}`)
+  const provider = new LocalStorageProvider({ basePath, provider: 'local' })
+
+  await assert.rejects(provider.listAllFiles(), /扫描目录失败/)
+})

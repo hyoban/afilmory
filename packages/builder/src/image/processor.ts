@@ -2,33 +2,13 @@ import { Buffer } from 'node:buffer'
 import path from 'node:path'
 
 import type { ImageMetadata } from '@afilmory/typing'
+import { isHeicLikeBuffer } from '@afilmory/utils/media-signature'
 import * as bmp from '@vingle/bmp-js'
 import heicConvert from 'heic-convert'
 import sharp from 'sharp'
 
 import { HEIC_FORMATS } from '../constants/index.js'
 import { getGlobalLoggers } from '../photo/logger-adapter.js'
-
-const HEIC_BRANDS = new Set(['heic', 'heix', 'hevc', 'hevx', 'heis', 'hevm'])
-
-function isHeicLikeBuffer(buffer: Buffer): boolean {
-  if (buffer.length < 12) {
-    return false
-  }
-
-  if (buffer.subarray(4, 8).toString('ascii') !== 'ftyp') {
-    return false
-  }
-
-  const brandWindow = buffer.subarray(8, Math.min(buffer.length, 64)).toString('ascii')
-  for (let index = 0; index <= brandWindow.length - 4; index += 4) {
-    if (HEIC_BRANDS.has(brandWindow.slice(index, index + 4))) {
-      return true
-    }
-  }
-
-  return false
-}
 
 // 获取图片元数据（复用 Sharp 实例）
 export async function getImageMetadataWithSharp(sharpInstance: sharp.Sharp): Promise<ImageMetadata | null> {

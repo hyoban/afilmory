@@ -3,6 +3,7 @@ import path from 'node:path'
 import process from 'node:process'
 
 import type { AfilmoryManifest, CameraInfo, LensInfo, PhotoManifestItem } from '@afilmory/builder'
+import { isPathInside } from '@afilmory/utils/path-safety'
 
 export interface TrashLocalPhotoOptions {
   photoId: string
@@ -177,11 +178,6 @@ async function resolveExistingFileInsideBase(realBasePath: string, candidate: st
   }
 
   return realSource
-}
-
-function isPathInside(parent: string, child: string): boolean {
-  const relative = path.relative(parent, child)
-  return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative))
 }
 
 async function ensureMissing(filePath: string): Promise<void> {

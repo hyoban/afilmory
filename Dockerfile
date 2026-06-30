@@ -15,10 +15,13 @@ RUN corepack enable
 FROM base AS builder
 
 RUN apk update && apk add --no-cache git perl
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+RUN pnpm fetch --frozen-lockfile
+
 COPY . .
 RUN sh ./scripts/preinstall.sh
-# Install all dependencies
-RUN pnpm install --frozen-lockfile
+# Install all dependencies from the lockfile-backed store fetched above.
+RUN pnpm install --frozen-lockfile --offline
 
 # Copy zeroperl.wasm to web public directory before build.
 # @uswriting/exiftool depends on @6over3/zeroperl-ts which loads zeroperl.wasm via fetch("./zeroperl.wasm")
@@ -63,11 +66,11 @@ COPY --from=builder --chown=nextjs:nodejs /app/apps/ssr/public /app/apps/ssr/pub
 COPY --from=builder --chown=nextjs:nodejs /app/package.json /workspace/package.json
 COPY --from=builder --chown=nextjs:nodejs /app/pnpm-lock.yaml /workspace/pnpm-lock.yaml
 COPY --from=builder --chown=nextjs:nodejs /app/pnpm-workspace.yaml /workspace/pnpm-workspace.yaml
-COPY --from=builder --chown=nextjs:nodejs /app/builder.config.ts /workspace/builder.config.ts
 COPY --from=builder --chown=nextjs:nodejs /app/site.config.ts /workspace/site.config.ts
 COPY --from=builder --chown=nextjs:nodejs /app/config.json /workspace/config.json
 COPY --from=builder --chown=nextjs:nodejs /app/node_modules /workspace/node_modules
 COPY --from=builder --chown=nextjs:nodejs /app/packages /workspace/packages
+COPY --from=builder --chown=nextjs:nodejs /app/scripts/docker-builder.config.ts /workspace/builder.config.ts
 COPY --from=builder --chown=nextjs:nodejs /app/scripts/docker-entrypoint.sh /app/docker-entrypoint.sh
 RUN mkdir -p \
     /workspace/apps/web/src/data \

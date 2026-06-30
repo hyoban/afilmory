@@ -1,4 +1,5 @@
 import { extname } from 'node:path'
+import process from 'node:process'
 
 import { DOMParser } from 'linkedom'
 import type { NextRequest } from 'next/server'
@@ -46,7 +47,7 @@ async function proxyAssets(req: NextRequest) {
 }
 
 async function proxyIndexHtml() {
-  const htmlText = await fetch(host).then((res) => res.text())
+  const htmlText = await fetch(host).then(res => res.text())
 
   const parser = new DOMParser()
   const document = parser.parseFromString(htmlText, 'text/html')
@@ -73,7 +74,7 @@ async function proxyIndexHtml() {
       .replace('/@react-refresh', `${host}/@react-refresh`)
   })
 
-  injectConfigToDocument(document)
+  await injectConfigToDocument(document)
 
   return new NextResponse(document.documentElement.outerHTML, {
     headers: { 'Content-Type': 'text/html' },

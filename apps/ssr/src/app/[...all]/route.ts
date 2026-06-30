@@ -3,15 +3,15 @@ import process from 'node:process'
 import type { NextRequest } from 'next/server'
 
 type RouteContext = {
-  params?: Promise<Record<string, string>>
+  params: Promise<{ all: string[] }>
 }
 
-const handler = (request: NextRequest, context?: RouteContext) => {
+const handler = (request: NextRequest, _context: RouteContext) => {
   if (process.env.NODE_ENV === 'development') {
-    return import('./dev').then(m => m.handler(request, context as never))
+    return import('./dev').then(m => m.handler(request))
   }
 
-  return import('./prod').then(m => m.handler(request, context as never))
+  return import('./prod').then(m => m.handler(request))
 }
 
 export const GET = handler

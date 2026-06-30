@@ -11,8 +11,7 @@ import { serveLocalPhotoAsset } from '~/lib/local-photo-assets'
 import { getLocalPhotoRuntimeConfigFromEnv } from '~/lib/local-photo-runtime'
 import { photoLoader } from '~/lib/photo-loader'
 
-type HtmlElement = ReturnType<typeof DOMParser.prototype.parseFromString>
-type OnlyHTMLDocument = HtmlElement extends infer T ? (T extends { [key: string]: any, head: any } ? T : never) : never
+type LinkedomDocument = Extract<ReturnType<typeof DOMParser.prototype.parseFromString>, { head: unknown }>
 
 export const handler = async (request: NextRequest, { params }: { params: Promise<{ photoId: string }> }) => {
   const runtimeConfig = getLocalPhotoRuntimeConfigFromEnv()
@@ -50,7 +49,7 @@ export const handler = async (request: NextRequest, { params }: { params: Promis
     // Insert meta open graph tags and twitter meta tags
     createAndInsertOpenGraphMeta(document, photo, request)
 
-    injectConfigToDocument(document)
+    await injectConfigToDocument(document)
 
     return new Response(document.documentElement.outerHTML, {
       headers: {
@@ -71,7 +70,7 @@ export const handler = async (request: NextRequest, { params }: { params: Promis
   }
 }
 
-const createAndInsertOpenGraphMeta = (document: OnlyHTMLDocument, photo: PhotoManifestItem, request: NextRequest) => {
+const createAndInsertOpenGraphMeta = (document: LinkedomDocument, photo: PhotoManifestItem, request: NextRequest) => {
   // Open Graph meta tags
 
   // X forward host

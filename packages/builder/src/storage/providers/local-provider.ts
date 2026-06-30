@@ -5,6 +5,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { CompatibleLoggerAdapter } from '@afilmory/builder/photo/logger-adapter.js'
+import { isPathInside } from '@afilmory/utils/path-safety'
 import consola from 'consola'
 
 import { SUPPORTED_FORMATS } from '../../constants/index.js'
@@ -141,11 +142,10 @@ export class LocalStorageProvider implements StorageProvider {
   }
 
   private resolveSafePath(key: string): string {
-    const filePath = path.join(this.basePath, key)
-    const resolvedPath = path.resolve(filePath)
+    const resolvedPath = path.resolve(this.basePath, key)
     const resolvedBasePath = path.resolve(this.basePath)
 
-    if (!resolvedPath.startsWith(resolvedBasePath)) {
+    if (!isPathInside(resolvedBasePath, resolvedPath)) {
       throw new Error(`LocalStorageProvider: 文件路径不安全：${key}`)
     }
 
@@ -336,7 +336,9 @@ export class LocalStorageProvider implements StorageProvider {
     catch (error) {
       const errorType = error instanceof Error ? error.name : 'UnknownError'
       const errorMessage = error instanceof Error ? error.message : String(error)
-      logger.main.error(`[${errorType}] 扫描目录失败：${dirPath} - ${errorMessage}`)
+      const message = `[${errorType}] 扫描目录失败：${dirPath} - ${errorMessage}`
+      logger.main.error(message)
+      throw new Error(message, { cause: error })
     }
   }
 

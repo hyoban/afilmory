@@ -10,6 +10,16 @@ export interface LocalPhotoRuntimeConfig {
   trashEnabled: boolean
 }
 
+export interface ResolvedLocalPhotoRuntimeConfig extends LocalPhotoRuntimeConfig {
+  repoRoot: string | null
+}
+
+export interface ResolveLocalPhotoRuntimeConfigOptions {
+  allowPublicPhotosFallback?: boolean
+  cwd?: string
+  requireTrashEnabled?: boolean
+}
+
 const envKeys = [
   'AFILMORY_LOCAL_PHOTO_TRASH',
   'AFILMORY_LOCAL_PHOTOS_DIR',
@@ -45,6 +55,18 @@ export function withLocalPhotoRuntimeEnv<T>(env: Record<string, string | undefin
     previous.set(key, process.env[key])
   }
 
+  const restore = () => {
+    for (const key of envKeys) {
+      const value = previous.get(key)
+      if (value === undefined) {
+        delete process.env[key]
+      }
+      else {
+        process.env[key] = value
+      }
+    }
+  }
+
   try {
     for (const key of envKeys) {
       const value = env[key]
@@ -55,18 +77,67 @@ export function withLocalPhotoRuntimeEnv<T>(env: Record<string, string | undefin
         process.env[key] = value
       }
     }
-    return fn()
-  }
-  finally {
-    for (const key of envKeys) {
-      const value = previous.get(key)
-      if (value === undefined) {
-        delete process.env[key]
-      }
-      else {
-        process.env[key] = value
-      }
+    const result = fn()
+    if (isPromiseLike(result)) {
+      return result.finally(restore) as T
     }
+
+    restore()
+    return result
+  }
+  catch (error) {
+    restore()
+    throw error
+  }
+}
+
+export async function resolveLocalPhotoRuntimeConfig(
+  options: ResolveLocalPhotoRuntimeConfigOptions = {},
+): Promise<ResolvedLocalPhotoRuntimeConfig | null> {
+  const cwd = options.cwd ?? process.cwd()
+  const envConfig = getLocalPhotoRuntimeConfigFromEnv()
+  if (envConfig) {
+    if (options.requireTrashEnabled && !envConfig.trashEnabled) {
+      throw new Error('Local photo trash is disabled')
+    }
+
+    return {
+      ...envConfig,
+      repoRoot: await findRepoRoot(cwd).catch(() => null),
+    }
+  }
+
+  let repoRoot: string
+  try {
+    repoRoot = await findRepoRoot(cwd)
+  }
+  catch {
+    if (options.requireTrashEnabled) {
+      throw new Error('Local photo runtime is unavailable')
+    }
+    return null
+  }
+
+  const builderConfig = await readBuilderConfigHints(path.join(repoRoot, 'builder.config.ts'))
+  if (builderConfig.exists && !builderConfig.isLocalProvider) {
+    if (options.requireTrashEnabled) {
+      throw new Error('Local photo trash is only available when builder storage provider is local')
+    }
+    return null
+  }
+
+  if (!builderConfig.exists && !options.allowPublicPhotosFallback) {
+    return null
+  }
+
+  const localBasePath = builderConfig.basePath ?? (await resolvePublicPhotosBasePath(repoRoot))
+  return {
+    localBasePath,
+    manifestPath: path.join(repoRoot, 'apps/web/src/data/photos-manifest.json'),
+    repoRoot,
+    source: 'builder',
+    thumbnailsDir: path.join(repoRoot, 'apps/web/public/thumbnails'),
+    trashEnabled: true,
   }
 }
 
@@ -134,4 +205,8 @@ function parseEnvBoolean(value: string | undefined, defaultValue: boolean): bool
   }
 
   return !['0', 'false', 'no', 'off'].includes(value.trim().toLowerCase())
+}
+
+function isPromiseLike<T>(value: T | PromiseLike<T>): value is Promise<T> {
+  return Boolean(value && typeof (value as PromiseLike<T>).then === 'function')
 }

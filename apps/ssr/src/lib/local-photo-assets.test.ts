@@ -1,11 +1,12 @@
 import assert from 'node:assert/strict'
+import { Buffer } from 'node:buffer'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
 import { it } from 'vitest'
 
-import { resolveLocalPhotoAssetPath } from './local-photo-assets'
+import { getLocalPhotoContentType, resolveLocalPhotoAssetPath } from './local-photo-assets'
 
 it('resolveLocalPhotoAssetPath resolves encoded paths inside the local photo directory', async () => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'afilmory-assets-'))
@@ -26,4 +27,10 @@ it('resolveLocalPhotoAssetPath rejects traversal outside the local photo directo
   await fs.writeFile(path.join(root, 'secret.jpg'), 'secret')
 
   await assert.rejects(resolveLocalPhotoAssetPath(photosDir, '/photos/../secret.jpg'), /Unsafe local photo path/)
+})
+
+it('getLocalPhotoContentType uses file content before the extension when available', async () => {
+  const jpegBuffer = Buffer.from([0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10, 0x4A, 0x46, 0x49, 0x46])
+
+  assert.equal(getLocalPhotoContentType('photo.HEIC', jpegBuffer), 'image/jpeg')
 })

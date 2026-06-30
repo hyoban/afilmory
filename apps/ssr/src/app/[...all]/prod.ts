@@ -8,7 +8,7 @@ import { getLocalPhotoRuntimeConfigFromEnv } from '~/lib/local-photo-runtime'
 const renderIndex = async () => {
   const indexHtml = await import('../../index.html').then(m => m.default)
   const document = new DOMParser().parseFromString(indexHtml, 'text/html')
-  injectConfigToDocument(document)
+  await injectConfigToDocument(document)
   return new Response(document.documentElement.outerHTML, {
     headers: {
       'Content-Type': 'text/html',

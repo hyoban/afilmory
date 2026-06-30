@@ -1,15 +1,11 @@
+import type { ShortcutTarget } from '@afilmory/ui/keyboard'
+import { getShortcutTarget, isEditableShortcutTarget } from '@afilmory/ui/keyboard'
 import { atom } from 'jotai'
 
 import { jotaiStore } from '../../lib/jotai'
 
 type PhotoLike = {
   id: string
-}
-
-type LocalPhotoTrashShortcutTarget = {
-  isContentEditable?: boolean
-  role?: string | null
-  tagName?: string | null
 }
 
 type LocalPhotoTrashShortcutInput = {
@@ -23,7 +19,7 @@ type LocalPhotoTrashShortcutInput = {
   key: string
   metaKey?: boolean
   shiftKey?: boolean
-  target?: LocalPhotoTrashShortcutTarget | null
+  target?: ShortcutTarget | null
 }
 
 export type LocalPhotoTrashSuccessTransition
@@ -85,19 +81,7 @@ export const resolveLocalPhotoTrashSuccess = (
   return { type: 'close' }
 }
 
-const editableShortcutTargetTags = new Set(['INPUT', 'SELECT', 'TEXTAREA'])
-
-export const getLocalPhotoTrashShortcutTarget = (target: EventTarget | null): LocalPhotoTrashShortcutTarget | null => {
-  if (!(target instanceof HTMLElement)) {
-    return null
-  }
-
-  return {
-    isContentEditable: target.isContentEditable,
-    role: target.getAttribute('role'),
-    tagName: target.tagName,
-  }
-}
+export const getLocalPhotoTrashShortcutTarget = getShortcutTarget
 
 export const shouldHandleLocalPhotoTrashShortcut = ({
   altKey = false,
@@ -128,10 +112,5 @@ export const shouldHandleLocalPhotoTrashShortcut = ({
     return true
   }
 
-  const tagName = target.tagName?.toUpperCase()
-  if (tagName && editableShortcutTargetTags.has(tagName)) {
-    return false
-  }
-
-  return !target.isContentEditable && target.role !== 'textbox'
+  return !isEditableShortcutTarget(target)
 }
