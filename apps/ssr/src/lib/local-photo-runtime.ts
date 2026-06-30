@@ -178,8 +178,7 @@ export async function readBuilderConfigHints(configPath: string): Promise<{
   }
 
   const isLocalProvider = /provider\s*:\s*['"]local['"]/.test(content)
-  const basePathMatch = content.match(/basePath\s*:\s*['"]([^'"]+)['"]/)
-  const rawBasePath = basePathMatch?.[1]?.trim()
+  const rawBasePath = readBuilderConfigStringProperty(content, 'basePath')
   const repoRoot = path.dirname(configPath)
 
   return {
@@ -205,6 +204,14 @@ function parseEnvBoolean(value: string | undefined, defaultValue: boolean): bool
   }
 
   return !['0', 'false', 'no', 'off'].includes(value.trim().toLowerCase())
+}
+
+function readBuilderConfigStringProperty(content: string, propertyName: string): string | null {
+  const directMatch = content.match(new RegExp(`${propertyName}\\s*:\\s*['"]([^'"]+)['"]`))
+  const envFallbackMatch = content.match(
+    new RegExp(`${propertyName}\\s*:\\s*process\\.env\\.[A-Z0-9_]+\\s*(?:\\|\\||\\?\\?)\\s*['"]([^'"]+)['"]`),
+  )
+  return (directMatch?.[1] ?? envFallbackMatch?.[1] ?? null)?.trim() || null
 }
 
 function isPromiseLike<T>(value: T | PromiseLike<T>): value is Promise<T> {

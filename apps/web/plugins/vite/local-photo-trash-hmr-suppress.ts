@@ -1,16 +1,16 @@
 import fs from 'node:fs/promises'
-import path from 'node:path'
 
-const markerMaxAgeMs = 10_000
+import {
+  getLocalPhotoTrashHmrSuppressMarkerPath,
+  LOCAL_PHOTO_TRASH_HMR_MARKER_MAX_AGE_MS,
+  LOCAL_PHOTO_TRASH_HMR_MARKER_REASON,
+} from '@afilmory/utils/local-photo-trash-hmr'
 
 interface LocalPhotoTrashHmrSuppressMarker {
   createdAt: number
   reason: string
 }
-
-export function getLocalPhotoTrashHmrSuppressMarkerPath(repoRoot: string): string {
-  return path.join(repoRoot, 'node_modules/.cache/afilmory/local-photo-trash-hmr-suppress.json')
-}
+export { getLocalPhotoTrashHmrSuppressMarkerPath }
 
 export async function consumeLocalPhotoTrashHmrSuppressMarker(repoRoot: string, now = Date.now()): Promise<boolean> {
   const markerPath = getLocalPhotoTrashHmrSuppressMarkerPath(repoRoot)
@@ -26,8 +26,8 @@ export async function consumeLocalPhotoTrashHmrSuppressMarker(repoRoot: string, 
   await fs.rm(markerPath, { force: true })
 
   return (
-    marker.reason === 'local-photo-trash'
+    marker.reason === LOCAL_PHOTO_TRASH_HMR_MARKER_REASON
     && Number.isFinite(marker.createdAt)
-    && now - marker.createdAt <= markerMaxAgeMs
+    && now - marker.createdAt <= LOCAL_PHOTO_TRASH_HMR_MARKER_MAX_AGE_MS
   )
 }

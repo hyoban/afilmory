@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import process from 'node:process'
@@ -33,7 +34,13 @@ interface PlannedMove {
   to: string
 }
 
+const manifestMutationQueues = new Map<string, Promise<unknown>>()
+
 export async function trashLocalPhoto(options: TrashLocalPhotoOptions): Promise<TrashLocalPhotoResult> {
+  return await runManifestMutation(options.manifestPath, () => trashLocalPhotoUnlocked(options))
+}
+
+async function trashLocalPhotoUnlocked(options: TrashLocalPhotoOptions): Promise<TrashLocalPhotoResult> {
   const manifest = await readManifest(options.manifestPath)
   const target = manifest.data.find(item => item.id === options.photoId)
   if (!target) {
@@ -100,9 +107,25 @@ async function readManifest(manifestPath: string): Promise<AfilmoryManifest> {
 }
 
 async function writeManifest(manifestPath: string, manifest: AfilmoryManifest): Promise<void> {
-  const tempPath = `${manifestPath}.tmp-${process.pid}-${Date.now()}`
+  const tempPath = `${manifestPath}.tmp-${process.pid}-${Date.now()}-${randomUUID()}`
   await fs.writeFile(tempPath, `${JSON.stringify(manifest, null, 2)}\n`)
   await fs.rename(tempPath, manifestPath)
+}
+
+async function runManifestMutation<T>(manifestPath: string, task: () => Promise<T>): Promise<T> {
+  const queueKey = path.resolve(manifestPath)
+  const previous = manifestMutationQueues.get(queueKey) ?? Promise.resolve()
+  const current = previous.catch(() => undefined).then(task)
+  manifestMutationQueues.set(queueKey, current)
+
+  try {
+    return await current
+  }
+  finally {
+    if (manifestMutationQueues.get(queueKey) === current) {
+      manifestMutationQueues.delete(queueKey)
+    }
+  }
 }
 
 async function planMoves({

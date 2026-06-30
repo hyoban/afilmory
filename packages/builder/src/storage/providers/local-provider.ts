@@ -328,7 +328,9 @@ export class LocalStorageProvider implements StorageProvider {
           catch (error) {
             const errorType = error instanceof Error ? error.name : 'UnknownError'
             const errorMessage = error instanceof Error ? error.message : String(error)
-            logger.main.warn(`[${errorType}] 获取文件信息失败：${relativeFilePath} - ${errorMessage}`)
+            const message = `[${errorType}] 获取文件信息失败：${relativeFilePath} - ${errorMessage}`
+            logger.main.error(message)
+            throw new Error(message, { cause: error })
           }
         }
       }

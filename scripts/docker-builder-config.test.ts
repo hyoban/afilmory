@@ -53,6 +53,16 @@ it('docker-builder config reads local photo runtime settings from the environmen
   }
 })
 
+it('docker entrypoint builds manifest arguments from explicit environment flags', () => {
+  const entrypoint = fs.readFileSync(new URL('./docker-entrypoint.sh', import.meta.url), 'utf8')
+
+  assert.doesNotMatch(entrypoint, /AFILMORY_BUILD_MANIFEST_ARGS/)
+  assert.match(entrypoint, /AFILMORY_BUILD_MANIFEST_FORCE/)
+  assert.match(entrypoint, /AFILMORY_BUILD_MANIFEST_FORCE_MANIFEST/)
+  assert.match(entrypoint, /AFILMORY_BUILD_MANIFEST_FORCE_THUMBNAILS/)
+  assert.match(entrypoint, /"\$@"/)
+})
+
 function restoreEnv(key: string, value: string | undefined): void {
   if (value === undefined) {
     delete process.env[key]

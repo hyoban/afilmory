@@ -3,7 +3,7 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
-import { it } from 'vitest'
+import { it, vi } from 'vitest'
 
 import { LocalStorageProvider } from './local-provider.js'
 
@@ -48,4 +48,30 @@ it('localStorageProvider fails instead of returning a partial manifest when the 
   const provider = new LocalStorageProvider({ basePath, provider: 'local' })
 
   await assert.rejects(provider.listAllFiles(), /扫描目录失败/)
+})
+
+it('localStorageProvider fails instead of returning a partial manifest when file stat fails during scan', async () => {
+  const basePath = await fs.mkdtemp(path.join(os.tmpdir(), 'afilmory-local-provider-'))
+  const disappearingFile = path.join(basePath, 'vanishes.jpg')
+  const originalStat = fs.stat.bind(fs)
+  const statSpy = vi.spyOn(fs, 'stat').mockImplementation((async (filePath, options) => {
+    if (String(filePath) === disappearingFile) {
+      throw new Error('vanished during scan')
+    }
+
+    return await originalStat(filePath, options as never)
+  }) as typeof fs.stat)
+
+  try {
+    await fs.writeFile(disappearingFile, 'image')
+    await fs.writeFile(path.join(basePath, 'kept.jpg'), 'kept')
+
+    const provider = new LocalStorageProvider({ basePath, provider: 'local' })
+
+    await assert.rejects(provider.listAllFiles(), /获取文件信息失败/)
+  }
+  finally {
+    statSpy.mockRestore()
+    await fs.rm(basePath, { force: true, recursive: true })
+  }
 })

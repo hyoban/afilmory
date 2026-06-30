@@ -2,6 +2,7 @@ import { Buffer } from 'node:buffer'
 import { readFileSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
+import process from 'node:process'
 
 import type { PhotoManifestItem } from '@afilmory/typing'
 import type { Plugin } from 'vite'
@@ -39,6 +40,8 @@ interface PhotoOgPayload {
   photos: Record<string, PhotoOgEntry>
 }
 
+const DEFAULT_OG_IMAGE_CONCURRENCY = 4
+
 export function photoOgMetadataPlugin(siteMeta: SiteMeta): Plugin {
   return {
     name: 'photo-og-metadata',
@@ -46,21 +49,20 @@ export function photoOgMetadataPlugin(siteMeta: SiteMeta): Plugin {
       const manifest = readManifest()
       const site = resolveSite(siteMeta)
       const fonts = await loadFonts()
-      const photoEntries = await Promise.all(
-        (manifest.data ?? [])
-          .filter(photo => photo.id && (photo.ogImageUrl || photo.thumbnailUrl || photo.originalUrl))
-          .map(async (photo) => {
-            const entry = await createPhotoOgEntry(photo, site, fonts, (fileName, source) => {
-              this.emitFile({
-                type: 'asset',
-                fileName,
-                source,
-              })
-            })
-
-            return [photo.id, entry] as const
-          }),
+      const ogPhotos = (manifest.data ?? []).filter(
+        photo => photo.id && (photo.ogImageUrl || photo.thumbnailUrl || photo.originalUrl),
       )
+      const photoEntries = await mapWithConcurrency(ogPhotos, getPhotoOgImageConcurrency(), async (photo) => {
+        const entry = await createPhotoOgEntry(photo, site, fonts, (fileName, source) => {
+          this.emitFile({
+            type: 'asset',
+            fileName,
+            source,
+          })
+        })
+
+        return [photo.id, entry] as const
+      })
       const photos = Object.fromEntries(photoEntries)
 
       const payload: PhotoOgPayload = {
@@ -76,6 +78,36 @@ export function photoOgMetadataPlugin(siteMeta: SiteMeta): Plugin {
       })
     },
   }
+}
+
+export async function mapWithConcurrency<T, TResult>(
+  items: readonly T[],
+  concurrency: number,
+  mapper: (item: T, index: number) => Promise<TResult>,
+): Promise<TResult[]> {
+  if (items.length === 0) {
+    return []
+  }
+
+  const workerCount = Math.max(1, Math.min(items.length, Math.floor(concurrency) || 1))
+  const results = Array.from({ length: items.length })
+  let nextIndex = 0
+
+  await Promise.all(
+    Array.from({ length: workerCount }, async () => {
+      while (true) {
+        const index = nextIndex
+        nextIndex++
+        if (index >= items.length) {
+          return
+        }
+
+        results[index] = await mapper(items[index]!, index)
+      }
+    }),
+  )
+
+  return results
 }
 
 function readManifest(): ManifestLike {
@@ -95,6 +127,11 @@ function resolveSite(siteMeta: SiteMeta): PhotoOgPayload['site'] {
   const url = siteMeta.url || ''
 
   return { title, name, description, url }
+}
+
+function getPhotoOgImageConcurrency(): number {
+  const parsed = Number.parseInt(process.env.AFILMORY_OG_IMAGE_CONCURRENCY || '', 10)
+  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : DEFAULT_OG_IMAGE_CONCURRENCY
 }
 
 async function createPhotoOgEntry(

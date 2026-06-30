@@ -101,6 +101,38 @@ export default defineBuilderConfig(() => ({
   )
 })
 
+it('resolveLocalPhotoRuntimeConfig resolves builder config env fallback base paths', async () => {
+  const root = await makeRepoRoot(`
+import { defineBuilderConfig } from '@afilmory/builder'
+
+export default defineBuilderConfig(() => ({
+  storage: {
+    provider: 'local',
+    basePath: process.env.AFILMORY_LOCAL_PHOTOS_DIR || './fixtures/photos',
+  },
+}))
+`)
+
+  await withLocalPhotoRuntimeEnvAsync(
+    {
+      AFILMORY_LOCAL_PHOTO_TRASH: undefined,
+      AFILMORY_LOCAL_PHOTOS_DIR: undefined,
+      AFILMORY_MANIFEST_PATH: undefined,
+      AFILMORY_THUMBNAILS_DIR: undefined,
+    },
+    async () => {
+      assert.deepEqual(await resolveLocalPhotoRuntimeConfig({ cwd: root }), {
+        localBasePath: `${root}/fixtures/photos`,
+        manifestPath: `${root}/apps/web/src/data/photos-manifest.json`,
+        repoRoot: root,
+        source: 'builder',
+        thumbnailsDir: `${root}/apps/web/public/thumbnails`,
+        trashEnabled: true,
+      })
+    },
+  )
+})
+
 async function makeRepoRoot(builderConfig: string): Promise<string> {
   const fs = await import('node:fs/promises')
   const os = await import('node:os')

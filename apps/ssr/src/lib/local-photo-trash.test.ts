@@ -20,7 +20,9 @@ async function createFixture() {
   await fs.mkdir(thumbnailsDir, { recursive: true })
   await fs.writeFile(path.join(basePath, 'Sony Alpha 6700', 'DSC00859.JPG'), 'image')
   await fs.writeFile(path.join(basePath, 'Sony Alpha 6700', 'DSC00859.MOV'), 'video')
+  await fs.writeFile(path.join(basePath, 'DSC00001.JPG'), 'image-2')
   await fs.writeFile(path.join(thumbnailsDir, 'DSC00859.jpg'), 'thumb')
+  await fs.writeFile(path.join(thumbnailsDir, 'DSC00001.jpg'), 'thumb-2')
 
   const manifest: AfilmoryManifest = {
     version: 'v10',
@@ -60,7 +62,7 @@ async function createFixture() {
           Model: 'ILCE-6700',
           LensMake: 'SONY',
           LensModel: 'E 18-135mm F3.5-5.6 OSS',
-        } as any,
+        } as AfilmoryManifest['data'][number]['exif'],
         toneAnalysis: null,
         location: null,
         video: {
@@ -158,6 +160,33 @@ it('trashLocalPhoto can preserve generated thumbnails', async () => {
   })
 
   assert.equal(await exists(path.join(fixture.thumbnailsDir, 'DSC00859.jpg')), true)
+})
+
+it('trashLocalPhoto serializes concurrent manifest writes', async () => {
+  const fixture = await createFixture()
+
+  await Promise.all([
+    trashLocalPhoto({
+      photoId: 'DSC00859',
+      localBasePath: fixture.basePath,
+      manifestPath: fixture.manifestPath,
+      now: () => fixedDate,
+      thumbnailsDir: fixture.thumbnailsDir,
+    }),
+    trashLocalPhoto({
+      photoId: 'DSC00001',
+      localBasePath: fixture.basePath,
+      manifestPath: fixture.manifestPath,
+      now: () => fixedDate,
+      thumbnailsDir: fixture.thumbnailsDir,
+    }),
+  ])
+
+  const nextManifest = JSON.parse(await fs.readFile(fixture.manifestPath, 'utf8')) as AfilmoryManifest
+  assert.deepEqual(
+    nextManifest.data.map(item => item.id),
+    [],
+  )
 })
 
 async function exists(filePath: string): Promise<boolean> {

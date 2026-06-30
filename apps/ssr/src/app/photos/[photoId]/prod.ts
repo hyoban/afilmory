@@ -1,6 +1,5 @@
 import { extname } from 'node:path'
 
-import type { PhotoManifestItem } from '@afilmory/builder'
 import siteConfig from '@config'
 import { DOMParser } from 'linkedom'
 import type { NextRequest } from 'next/server'
@@ -10,8 +9,7 @@ import { injectConfigToDocument } from '~/lib/injectable'
 import { serveLocalPhotoAsset } from '~/lib/local-photo-assets'
 import { getLocalPhotoRuntimeConfigFromEnv } from '~/lib/local-photo-runtime'
 import { photoLoader } from '~/lib/photo-loader'
-
-type LinkedomDocument = Extract<ReturnType<typeof DOMParser.prototype.parseFromString>, { head: unknown }>
+import { createAndInsertPhotoOpenGraphMeta } from '~/lib/photo-open-graph-meta'
 
 export const handler = async (request: NextRequest, { params }: { params: Promise<{ photoId: string }> }) => {
   const runtimeConfig = getLocalPhotoRuntimeConfigFromEnv()
@@ -47,7 +45,7 @@ export const handler = async (request: NextRequest, { params }: { params: Promis
     })
     document.head.title = `${photo.id} | ${siteConfig.title}`
     // Insert meta open graph tags and twitter meta tags
-    createAndInsertOpenGraphMeta(document, photo, request)
+    createAndInsertPhotoOpenGraphMeta(document, photo, request, siteConfig.title)
 
     await injectConfigToDocument(document)
 
@@ -68,52 +66,4 @@ export const handler = async (request: NextRequest, { params }: { params: Promis
       status: 500,
     })
   }
-}
-
-const createAndInsertOpenGraphMeta = (document: LinkedomDocument, photo: PhotoManifestItem, request: NextRequest) => {
-  // Open Graph meta tags
-
-  // X forward host
-  const xForwardedHeaders = {
-    'x-forwarded-host': request.headers.get('x-forwarded-host'),
-    'x-forwarded-proto': request.headers.get('x-forwarded-proto'),
-    'x-forwarded-for': request.headers.get('x-forwarded-for'),
-  }
-
-  let realOrigin = request.nextUrl.origin
-  if (xForwardedHeaders['x-forwarded-host']) {
-    realOrigin = `${xForwardedHeaders['x-forwarded-proto'] || 'https'}://${xForwardedHeaders['x-forwarded-host']}`
-  }
-
-  const ogTags = {
-    'og:type': 'website',
-    'og:title': `${photo.id} on ${siteConfig.title}`,
-    'og:description': photo.description || '',
-    'og:image': `${realOrigin}/og/${photo.id}`,
-    'og:url': `${realOrigin}/${photo.id}`,
-  }
-
-  for (const [property, content] of Object.entries(ogTags)) {
-    const ogMeta = document.createElement('meta', {})
-    ogMeta.setAttribute('property', property)
-    ogMeta.setAttribute('content', content)
-    document.head.append(ogMeta as unknown as Node)
-  }
-
-  // Twitter Card meta tags
-  const twitterTags = {
-    'twitter:card': 'summary_large_image',
-    'twitter:title': `${photo.id} on ${siteConfig.title}`,
-    'twitter:description': photo.description || '',
-    'twitter:image': `${realOrigin}/og/${photo.id}`,
-  }
-
-  for (const [name, content] of Object.entries(twitterTags)) {
-    const twitterMeta = document.createElement('meta', {})
-    twitterMeta.setAttribute('name', name)
-    twitterMeta.setAttribute('content', content)
-    document.head.append(twitterMeta as unknown as Node)
-  }
-
-  return document
 }

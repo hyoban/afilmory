@@ -13,9 +13,26 @@ mkdir -p "$(dirname "$AFILMORY_MANIFEST_PATH")" "$AFILMORY_THUMBNAILS_DIR"
 rm -rf "$SSR_PUBLIC_DIR/thumbnails"
 ln -s "$AFILMORY_THUMBNAILS_DIR" "$SSR_PUBLIC_DIR/thumbnails"
 
+is_truthy() {
+  case "$(printf '%s' "${1:-}" | tr '[:upper:]' '[:lower:]')" in
+    1|true|yes|on) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
 if [ "${AFILMORY_REBUILD_MANIFEST_ON_START:-1}" != "0" ]; then
   cd "$WORKSPACE_DIR"
-  /workspace/node_modules/.bin/tsx /workspace/packages/builder/src/cli.ts --no-ui ${AFILMORY_BUILD_MANIFEST_ARGS:-}
+  set -- --no-ui
+  if is_truthy "${AFILMORY_BUILD_MANIFEST_FORCE:-}"; then
+    set -- "$@" --force
+  fi
+  if is_truthy "${AFILMORY_BUILD_MANIFEST_FORCE_MANIFEST:-}"; then
+    set -- "$@" --force-manifest
+  fi
+  if is_truthy "${AFILMORY_BUILD_MANIFEST_FORCE_THUMBNAILS:-}"; then
+    set -- "$@" --force-thumbnails
+  fi
+  /workspace/node_modules/.bin/tsx /workspace/packages/builder/src/cli.ts "$@"
 fi
 
 exec node /app/apps/ssr/server.js

@@ -5,6 +5,7 @@
   "private": true,
   "exports": {
     ".": "./src/index.ts",
+    "./local-photo-trash-hmr": "./src/local-photo-trash-hmr.ts",
     "./media-signature": "./src/media-signature.ts",
     "./path-safety": "./src/path-safety.ts",
     "./*": "./src/*"
