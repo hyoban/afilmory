@@ -10,6 +10,7 @@ import { ImageLoaderManager } from '~/lib/image-loader-manager'
 import type { LoadingIndicatorRef } from '~/modules/inspector/LoadingIndicator'
 import type { LivePhotoVideoHandle } from '~/modules/media/LivePhotoVideo'
 
+import { shouldLoadProgressiveImage } from './progressive-image-load-state'
 import type { ProgressiveImageState } from './types'
 import { SHOW_SCALE_INDICATOR_DURATION } from './types'
 
@@ -75,15 +76,30 @@ export const useImageLoader = (
 ) => {
   const { t } = useTranslation()
   const imageLoaderManagerRef = useRef<ImageLoaderManager | null>(null)
+  const loadedSrcRef = useRef<string | null>(null)
+  const errorSrcRef = useRef<string | null>(null)
 
   useEffect(() => {
-    if (highResLoaded || error || !isCurrentImage) return
+    if (
+      !shouldLoadProgressiveImage({
+        error,
+        errorSrc: errorSrcRef.current,
+        highResLoaded,
+        isCurrentImage,
+        loadedSrc: loadedSrcRef.current,
+        src,
+      })
+    ) {
+      return
+    }
 
     // Create new image loader manager
     const imageLoaderManager = new ImageLoaderManager()
     imageLoaderManagerRef.current = imageLoaderManager
 
     function cleanup() {
+      loadedSrcRef.current = null
+      errorSrcRef.current = null
       setHighResLoaded?.(false)
       setBlobSrc?.(null)
       setError?.(false)
@@ -104,11 +120,16 @@ export const useImageLoader = (
           },
         })
 
+        loadedSrcRef.current = src
+        errorSrcRef.current = null
         setBlobSrc?.(result.blobSrc)
         onBlobSrcChange?.(result.blobSrc)
         setHighResLoaded?.(true)
-      } catch (loadError) {
+      }
+      catch (loadError) {
         console.error('Failed to load image:', loadError)
+        loadedSrcRef.current = null
+        errorSrcRef.current = src
         setError?.(true)
 
         // 显示错误状态，而不是完全隐藏图片
@@ -202,7 +223,9 @@ export const useLivePhotoControls = (
   const longPressTimerRef = useRef<NodeJS.Timeout | null>(null)
 
   const handleLongPressStart = useCallback(() => {
-    if (!isMobileDevice) return
+    if (!isMobileDevice) {
+      return
+    }
     const playVideo = () => livePhotoRef.current?.play()
     if (!isLivePhoto || !livePhotoRef.current?.getIsVideoLoaded() || isLivePhotoPlaying) {
       return
@@ -214,7 +237,9 @@ export const useLivePhotoControls = (
   }, [isLivePhoto, isLivePhotoPlaying, livePhotoRef])
 
   const handleLongPressEnd = useCallback(() => {
-    if (!isMobileDevice) return
+    if (!isMobileDevice) {
+      return
+    }
     if (longPressTimerRef.current) {
       clearTimeout(longPressTimerRef.current)
     }
@@ -235,7 +260,8 @@ export const useWebGLLoadingState = (loadingIndicatorRef: React.RefObject<Loadin
 
       if (state === LoadingState.CREATE_TEXTURE) {
         message = t('photo.webgl.creatingTexture')
-      } else if (state === LoadingState.IMAGE_LOADING) {
+      }
+      else if (state === LoadingState.IMAGE_LOADING) {
         message = t('photo.webgl.loadingImage')
       }
 
@@ -287,10 +313,12 @@ export const createContextMenuItems = (blobSrc: string, alt: string, t: TFunctio
                   }),
                 ])
                 resolve()
-              } else {
+              }
+              else {
                 reject(new Error('Failed to convert image to PNG'))
               }
-            } catch (error) {
+            }
+            catch (error) {
               reject(error)
             }
           }, 'image/png')
@@ -298,12 +326,13 @@ export const createContextMenuItems = (blobSrc: string, alt: string, t: TFunctio
 
         toast.dismiss(loadingToast)
         toast.success(t('photo.copy.success'))
-      } catch (error) {
+      }
+      catch (error) {
         console.error('Failed to copy image:', error)
 
         // Fallback: try to copy the original blob
         try {
-          const blob = await fetch(blobSrc).then((res) => res.blob())
+          const blob = await fetch(blobSrc).then(res => res.blob())
           await navigator.clipboard.write([
             new ClipboardItem({
               [blob.type]: blob,
@@ -311,7 +340,8 @@ export const createContextMenuItems = (blobSrc: string, alt: string, t: TFunctio
           ])
           toast.dismiss(loadingToast)
           toast.success(t('photo.copy.success'))
-        } catch (fallbackError) {
+        }
+        catch (fallbackError) {
           console.error('Fallback copy also failed:', fallbackError)
           toast.dismiss(loadingToast)
           toast.error(t('photo.copy.error'))
