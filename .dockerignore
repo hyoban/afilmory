@@ -2,6 +2,7 @@ node_modules
 .git
 .github
 .vscode
+.codex-tmp
 
 .DS_Store
 dist
@@ -13,11 +14,18 @@ dist-ssr
 *.local
 
 apps/web/assets-git
+apps/web/src/data/photos-manifest.json
+apps/web/src/data/.cache
 apps/web/public/photos
 apps/web/public/thumbnails
 apps/ssr/public
 **/.afilmory-trash
 .vercel
+
+*.tar
+*.tar.gz
+**/*.tar
+**/*.tar.gz
 
 public/**
 apps/ssr/src/index.html
