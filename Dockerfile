@@ -32,7 +32,10 @@ ARG GIT_TOKEN
 ARG PG_CONNECTION_STRING
 # Build the app.
 # The build script in the ssr package.json handles building the web app first.
-RUN pnpm --filter=@afilmory/ssr build
+# Docker local-photo mode mounts photos, thumbnails, and the runtime manifest at container runtime,
+# so image builds should use the manifest already present in the build context instead of scanning
+# a host-local photo directory that does not exist inside the build container.
+RUN AFILMORY_SKIP_BUILD_MANIFEST=1 pnpm --filter=@afilmory/ssr build
 
 # -----------------
 # Runner stage
@@ -48,6 +51,7 @@ RUN apk add --no-cache curl wget
 # Create a non-root user
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
+RUN mkdir -p /data/photos /data/manifest && chown -R nextjs:nodejs /data
 
 USER nextjs
 

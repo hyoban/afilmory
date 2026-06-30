@@ -3,7 +3,7 @@ import './PhotoViewer.css'
 import 'swiper/css'
 import 'swiper/css/navigation'
 
-import { Thumbhash } from '@afilmory/ui'
+import { Prompt, Thumbhash } from '@afilmory/ui'
 import { Spring } from '@afilmory/utils'
 import type { AnimationFrameRect, MobileViewerDismissSnapshot } from '@afilmory/viewer-motion'
 import {
@@ -15,10 +15,11 @@ import {
   useViewerMobileInteractions,
   useViewerTransitions,
 } from '@afilmory/viewer-motion'
-import { PanelRightOpen } from 'lucide-react'
+import { PanelRightOpen, Trash2 } from 'lucide-react'
 import { AnimatePresence, m } from 'motion/react'
 import { Fragment, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 import type { Swiper as SwiperType } from 'swiper'
 import { Navigation, Virtual } from 'swiper/modules'
 import { Swiper, SwiperSlide } from 'swiper/react'
@@ -35,6 +36,7 @@ import { ReactionRail } from '../social'
 import { canUsePhotoReactions } from '../social/reaction-availability'
 import { resolvePhotoViewerEntryState, shouldHideCurrentViewerImage } from './entry-animation-state'
 import { GalleryThumbnail } from './GalleryThumbnail'
+import { getLocalPhotoTrashShortcutTarget, shouldHandleLocalPhotoTrashShortcut } from './local-photo-trash-state'
 import { MobilePhotoInspectorSheet } from './MobilePhotoInspectorSheet'
 import { ProgressiveImage } from './ProgressiveImage'
 
@@ -45,6 +47,7 @@ interface PhotoViewerProps {
   onClose: () => void
   onDragDismiss?: (frame: AnimationFrameRect) => void
   onIndexChange: (index: number) => void
+  onTrashSuccess?: (photoId: string) => void
   triggerElement: HTMLElement | null
   disableEntryTransition?: boolean
   onExitComplete?: () => void
@@ -63,6 +66,7 @@ export const PhotoViewer = ({
   onClose,
   onDragDismiss,
   onIndexChange,
+  onTrashSuccess,
   triggerElement,
   disableEntryTransition = false,
   onExitComplete,
@@ -70,11 +74,13 @@ export const PhotoViewer = ({
   const { t } = useTranslation()
   const isMobile = useMobile()
   const showPhotoReactions = canUsePhotoReactions(injectConfig)
+  const canTrashLocalPhoto = Boolean(injectConfig.localPhotoTrash)
   const swiperRef = useRef<SwiperType | null>(null)
   const [isImageZoomed, setIsImageZoomed] = useState(false)
   const [isCurrentImageVisualReady, setIsCurrentImageVisualReady] = useState(false)
   const [isDesktopInspectorVisible, setIsDesktopInspectorVisible] = useState(!isMobile)
   const [currentBlobSrc, setCurrentBlobSrc] = useState<string | null>(null)
+  const [isTrashingPhoto, setIsTrashingPhoto] = useState(false)
   const [dragDismissExitFrame, setDragDismissExitFrame] = useState<AnimationFrameRect | null>(null)
   const [entrySuppressedPhotoId] = useState(() => (disableEntryTransition ? (photos[currentIndex]?.id ?? null) : null))
 
@@ -222,6 +228,54 @@ export const PhotoViewer = ({
     }
   }, [currentIndex, photos.length])
 
+  const handleTrashCurrentPhoto = useCallback(() => {
+    if (
+      !canTrashLocalPhoto
+      || !currentPhoto
+      || isTrashingPhoto
+      || document.querySelector('[data-slot="dialog-content"]')
+    ) {
+      return
+    }
+
+    Prompt.prompt({
+      title: t('photo.trash.confirm.title'),
+      description: t('photo.trash.confirm.description', {
+        title: currentPhoto.title || currentPhoto.id,
+      }),
+      variant: 'danger',
+      onCancelText: t('photo.trash.cancel'),
+      onConfirmText: t('photo.trash.confirm.action'),
+      onConfirm: async () => {
+        setIsTrashingPhoto(true)
+        try {
+          const response = await fetch('/api/local/photos/trash', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ photoId: currentPhoto.id }),
+          })
+
+          if (!response.ok) {
+            const payload = await response.json().catch(() => null)
+            const message = typeof payload?.error === 'string' ? payload.error : t('photo.trash.error')
+            throw new Error(message)
+          }
+
+          toast.success(t('photo.trash.success'))
+          setIsTrashingPhoto(false)
+          onTrashSuccess?.(currentPhoto.id)
+        }
+        catch (error) {
+          console.error('Failed to move photo to trash:', error)
+          toast.error(error instanceof Error ? error.message : t('photo.trash.error'))
+          setIsTrashingPhoto(false)
+        }
+      },
+    })
+  }, [canTrashLocalPhoto, currentPhoto, isTrashingPhoto, onTrashSuccess, t])
+
   // 同步 Swiper 的索引
   useEffect(() => {
     if (swiperRef.current && swiperRef.current.activeIndex !== currentIndex) {
@@ -298,6 +352,30 @@ export const PhotoViewer = ({
           handleCloseRequest()
           break
         }
+        case 'Backspace':
+        case 'Delete': {
+          if (
+            !shouldHandleLocalPhotoTrashShortcut({
+              altKey: event.altKey,
+              canTrashLocalPhoto,
+              ctrlKey: event.ctrlKey,
+              defaultPrevented: event.defaultPrevented,
+              hasOpenDialog: Boolean(document.querySelector('[data-slot="dialog-content"]')),
+              isOpen,
+              isTrashingPhoto,
+              key: event.key,
+              metaKey: event.metaKey,
+              shiftKey: event.shiftKey,
+              target: getLocalPhotoTrashShortcutTarget(event.target),
+            })
+          ) {
+            break
+          }
+
+          event.preventDefault()
+          handleTrashCurrentPhoto()
+          break
+        }
       }
     }
 
@@ -305,7 +383,15 @@ export const PhotoViewer = ({
     return () => {
       document.removeEventListener('keydown', handleKeyDown)
     }
-  }, [isOpen, handleCloseRequest, handlePrevious, handleNext])
+  }, [
+    canTrashLocalPhoto,
+    handleCloseRequest,
+    handleNext,
+    handlePrevious,
+    handleTrashCurrentPhoto,
+    isOpen,
+    isTrashingPhoto,
+  ])
 
   useEffect(() => {
     if (!shouldMountImageStage) {
@@ -416,6 +502,18 @@ export const PhotoViewer = ({
 
                       {/* 右侧按钮组 */}
                       <div className="flex items-center gap-2">
+                        {canTrashLocalPhoto && (
+                          <button
+                            type="button"
+                            disabled={!isMobileChromeInteractive || isTrashingPhoto}
+                            className={`bg-material-ultra-thick ${mobileChromeButtonClassName} flex size-8 items-center justify-center rounded-full text-white backdrop-blur-2xl duration-200 hover:bg-red-500/70 disabled:cursor-default`}
+                            onClick={handleTrashCurrentPhoto}
+                            title={t('photo.trash.action')}
+                          >
+                            <Trash2 className="size-4" />
+                          </button>
+                        )}
+
                         {/* 分享按钮 */}
                         <ShareModal
                           photo={currentPhoto}

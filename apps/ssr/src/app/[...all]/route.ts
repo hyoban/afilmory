@@ -1,35 +1,17 @@
-import { DOMParser } from 'linkedom'
+import process from 'node:process'
+
 import type { NextRequest } from 'next/server'
 
-import { injectConfigToDocument } from '~/lib/injectable'
-
-const renderIndex = async () => {
-  const indexHtml = await import('../../index.html').then((m) => m.default)
-  const document = new DOMParser().parseFromString(indexHtml, 'text/html')
-  injectConfigToDocument(document)
-  return new Response(document.documentElement.outerHTML, {
-    headers: {
-      'Content-Type': 'text/html',
-      'X-SSR': '1',
-    },
-  })
+type RouteContext = {
+  params?: Promise<Record<string, string>>
 }
 
-const handler = async (req: NextRequest) => {
+const handler = (request: NextRequest, context?: RouteContext) => {
   if (process.env.NODE_ENV === 'development') {
-    return import('./dev').then((m) => m.handler(req))
+    return import('./dev').then(m => m.handler(request, context as never))
   }
 
-  if (req.method !== 'GET' && req.method !== 'HEAD') {
-    return new Response(null, { status: 404 })
-  }
-
-  const acceptsHtml = req.headers.get('accept')?.includes('text/html')
-  if (!acceptsHtml) {
-    return new Response(null, { status: 404 })
-  }
-
-  return renderIndex()
+  return import('./prod').then(m => m.handler(request, context as never))
 }
 
 export const GET = handler

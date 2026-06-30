@@ -4,6 +4,7 @@ import { Button } from '../button/Button'
 import { DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../dialog'
 import { Modal } from '../modal'
 import type { ModalComponent, ModalComponentProps } from '../modal/types'
+import { getPromptConfirmShortcutTarget, shouldHandlePromptConfirmShortcut } from './prompt-keyboard'
 
 type PromptVariant = 'danger' | 'info'
 
@@ -35,23 +36,48 @@ export const BasePrompt: ModalComponent<PromptOptions> = ({
   const handleCancel = async () => {
     try {
       await onCancel?.()
-    } finally {
+    }
+    finally {
       dismiss()
     }
   }
 
   const handleConfirm = async () => {
+    if (submitting) {
+      return
+    }
+
     try {
       setSubmitting(true)
       await onConfirm?.()
-    } finally {
+    }
+    finally {
       setSubmitting(false)
       Modal.dismiss(modalId)
     }
   }
 
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (
+      !shouldHandlePromptConfirmShortcut({
+        altKey: event.altKey,
+        ctrlKey: event.ctrlKey,
+        isSubmitting: submitting,
+        key: event.key,
+        metaKey: event.metaKey,
+        shiftKey: event.shiftKey,
+        target: getPromptConfirmShortcutTarget(event.target),
+      })
+    ) {
+      return
+    }
+
+    event.preventDefault()
+    void handleConfirm()
+  }
+
   return (
-    <div>
+    <div onKeyDown={handleKeyDown}>
       <DialogHeader className="mb-2">
         <DialogTitle>{title}</DialogTitle>
         {description ? <DialogDescription className="text-text-secondary">{description}</DialogDescription> : null}
@@ -62,6 +88,7 @@ export const BasePrompt: ModalComponent<PromptOptions> = ({
           {onCancelText}
         </Button>
         <Button
+          autoFocus
           size="sm"
           variant={variant === 'danger' ? 'destructive' : 'primary'}
           onClick={handleConfirm}

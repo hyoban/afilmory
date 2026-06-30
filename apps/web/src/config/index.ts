@@ -6,6 +6,7 @@ const defaultInjectConfig = {
   useApi: false,
   useNext: false,
   useCloud: false,
+  localPhotoTrash: false,
 }
 
 export const injectConfig = merge(defaultInjectConfig, __CONFIG__)

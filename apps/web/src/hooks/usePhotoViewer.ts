@@ -9,6 +9,7 @@ import { setViewer, viewerAtom } from '~/atoms/viewer'
 import { jotaiStore } from '~/lib/jotai'
 import { trackView } from '~/lib/tracker'
 import { getPhotoDateMs, getRangeEndMs, getRangeStartMs } from '~/modules/gallery/dateRangeUtils'
+import { excludeLocallyTrashedPhotos, locallyTrashedPhotoIdsAtom } from '~/modules/viewer/local-photo-trash-state'
 import { PhotosContext } from '~/providers/photos-provider'
 
 const data = photoLoader.getPhotos()
@@ -120,14 +121,18 @@ const filterAndSortPhotos = (
 export const getFilteredPhotos = () => {
   // 直接从 jotaiStore 中读取当前状态
   const currentGallerySetting = jotaiStore.get(gallerySettingAtom)
-  return filterAndSortPhotos(
-    currentGallerySetting.selectedTags,
-    currentGallerySetting.selectedCameras,
-    currentGallerySetting.selectedLenses,
-    currentGallerySetting.selectedRatings,
-    currentGallerySetting.selectedDateRange,
-    currentGallerySetting.sortOrder,
-    currentGallerySetting.tagFilterMode,
+  const locallyTrashedPhotoIds = jotaiStore.get(locallyTrashedPhotoIdsAtom)
+  return excludeLocallyTrashedPhotos(
+    filterAndSortPhotos(
+      currentGallerySetting.selectedTags,
+      currentGallerySetting.selectedCameras,
+      currentGallerySetting.selectedLenses,
+      currentGallerySetting.selectedRatings,
+      currentGallerySetting.selectedDateRange,
+      currentGallerySetting.sortOrder,
+      currentGallerySetting.tagFilterMode,
+    ),
+    locallyTrashedPhotoIds,
   )
 }
 
@@ -141,18 +146,31 @@ export const usePhotos = () => {
     selectedDateRange,
     tagFilterMode,
   } = useAtomValue(gallerySettingAtom)
+  const locallyTrashedPhotoIds = useAtomValue(locallyTrashedPhotoIdsAtom)
 
   const masonryItems = useMemo(() => {
-    return filterAndSortPhotos(
-      selectedTags,
-      selectedCameras,
-      selectedLenses,
-      selectedRatings,
-      selectedDateRange,
-      sortOrder,
-      tagFilterMode,
+    return excludeLocallyTrashedPhotos(
+      filterAndSortPhotos(
+        selectedTags,
+        selectedCameras,
+        selectedLenses,
+        selectedRatings,
+        selectedDateRange,
+        sortOrder,
+        tagFilterMode,
+      ),
+      locallyTrashedPhotoIds,
     )
-  }, [sortOrder, selectedTags, selectedCameras, selectedLenses, selectedRatings, selectedDateRange, tagFilterMode])
+  }, [
+    sortOrder,
+    selectedTags,
+    selectedCameras,
+    selectedLenses,
+    selectedRatings,
+    selectedDateRange,
+    tagFilterMode,
+    locallyTrashedPhotoIds,
+  ])
 
   return masonryItems
 }
@@ -211,30 +229,33 @@ export const usePhotoViewer = () => {
     [photos, navigate, location.search],
   )
 
-  const closeViewer = useCallback(() => {
-    setViewer(prev => ({
-      ...prev,
-      isOpen: false,
-      pendingCloseInstanceId: null,
-      triggerElement: null,
-    }))
+  const closeViewer = useCallback(
+    (options?: { replace?: boolean }) => {
+      setViewer(prev => ({
+        ...prev,
+        isOpen: false,
+        pendingCloseInstanceId: null,
+        triggerElement: null,
+      }))
 
-    // Navigate back to gallery (creates history entry)
-    // Check if we're on explory path to preserve it
-    const isExploryPath = location.pathname.includes('/explory')
-    if (isExploryPath) {
-      navigate(`/explory${location.search}`)
-    }
-    else {
-      navigate(`/${location.search}`)
-    }
+      // Navigate back to gallery (creates history entry)
+      // Check if we're on explory path to preserve it
+      const isExploryPath = location.pathname.includes('/explory')
+      if (isExploryPath) {
+        navigate(`/explory${location.search}`, { replace: options?.replace })
+      }
+      else {
+        navigate(`/${location.search}`, { replace: options?.replace })
+      }
 
-    // 恢复背景滚动
-    document.body.style.overflow = ''
-  }, [navigate, location.search, location.pathname])
+      // 恢复背景滚动
+      document.body.style.overflow = ''
+    },
+    [navigate, location.search, location.pathname],
+  )
 
   const goToIndex = useCallback(
-    (index: number) => {
+    (index: number, options?: { replace?: boolean }) => {
       if (index >= 0 && index < photos.length) {
         const photo = photos[index]
 
@@ -249,7 +270,7 @@ export const usePhotoViewer = () => {
         }))
 
         // Create history entry for each photo navigation to support browser back/forward
-        navigate(`/photos/${photo.id}${location.search}`)
+        navigate(`/photos/${photo.id}${location.search}`, { replace: options?.replace })
 
         trackView(photo.id)
       }

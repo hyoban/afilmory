@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 cd ../web
-pnpm build
+BUILD_FOR_SSR_HOST=1 pnpm build
 
 rm -rf ../ssr/public
 cp -r dist ../ssr/public

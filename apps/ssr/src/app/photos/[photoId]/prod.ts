@@ -1,3 +1,5 @@
+import { extname } from 'node:path'
+
 import type { PhotoManifestItem } from '@afilmory/builder'
 import siteConfig from '@config'
 import { DOMParser } from 'linkedom'
@@ -5,12 +7,20 @@ import type { NextRequest } from 'next/server'
 
 import indexHtml from '~/index.html'
 import { injectConfigToDocument } from '~/lib/injectable'
+import { serveLocalPhotoAsset } from '~/lib/local-photo-assets'
+import { getLocalPhotoRuntimeConfigFromEnv } from '~/lib/local-photo-runtime'
 import { photoLoader } from '~/lib/photo-loader'
 
 type HtmlElement = ReturnType<typeof DOMParser.prototype.parseFromString>
-type OnlyHTMLDocument = HtmlElement extends infer T ? (T extends { [key: string]: any; head: any } ? T : never) : never
+type OnlyHTMLDocument = HtmlElement extends infer T ? (T extends { [key: string]: any, head: any } ? T : never) : never
 
 export const handler = async (request: NextRequest, { params }: { params: Promise<{ photoId: string }> }) => {
+  const runtimeConfig = getLocalPhotoRuntimeConfigFromEnv()
+  const acceptsHtml = request.headers.get('accept')?.includes('text/html')
+  if (runtimeConfig && (!acceptsHtml || extname(request.nextUrl.pathname))) {
+    return serveLocalPhotoAsset(request, runtimeConfig.localBasePath)
+  }
+
   const { photoId } = await params
 
   const photo = photoLoader.getPhoto(photoId)
@@ -48,10 +58,11 @@ export const handler = async (request: NextRequest, { params }: { params: Promis
         'X-SSR': '1',
       },
     })
-  } catch (error) {
+  }
+  catch (error) {
     console.error('Error generating SSR page:', error)
-    console.info('Falling back to static index.html')
-    console.info(error.message)
+    console.warn('Falling back to static index.html')
+    console.warn(error instanceof Error ? error.message : error)
 
     return new Response(indexHtml, {
       headers: { 'Content-Type': 'text/html' },

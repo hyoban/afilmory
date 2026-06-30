@@ -26,7 +26,9 @@ function Dialog({ children, ...props }: DialogProps) {
   const [isOpen, setIsOpen] = React.useState(props?.open ?? props?.defaultOpen ?? false)
 
   React.useEffect(() => {
-    if (props?.open !== undefined) setIsOpen(props.open)
+    if (props?.open !== undefined) {
+      setIsOpen(props.open)
+    }
   }, [props?.open])
 
   const handleOpenChange = React.useCallback(
@@ -71,7 +73,7 @@ function DialogOverlay({ className, ...props }: DialogOverlayProps) {
     <DialogPrimitive.Overlay
       data-slot="dialog-overlay"
       className={clsxm(
-        'fixed inset-0 z-50 bg-black/80 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
+        'fixed inset-0 z-10060 bg-black/80 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
         className,
       )}
       {...props}
@@ -81,8 +83,8 @@ function DialogOverlay({ className, ...props }: DialogOverlayProps) {
 
 type FlipDirection = 'top' | 'bottom' | 'left' | 'right'
 
-export type DialogContentProps = React.ComponentProps<typeof DialogPrimitive.Content> &
-  HTMLMotionProps<'div'> & {
+export type DialogContentProps = React.ComponentProps<typeof DialogPrimitive.Content>
+  & HTMLMotionProps<'div'> & {
     from?: FlipDirection
     transition?: Transition
     /**
@@ -156,7 +158,7 @@ function DialogContent({
               }}
               transition={transition}
               className={clsxm(
-                'fixed left-[50%] top-[50%] z-50 grid w-[calc(100%-2rem)] max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border border-border bg-background px-3 pt-4 pb-3 rounded-lg shape-squircle',
+                'fixed left-[50%] top-[50%] z-10061 grid w-[calc(100%-2rem)] max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border border-border bg-background px-3 pt-4 pb-3 rounded-lg shape-squircle',
                 className,
               )}
               {...props}

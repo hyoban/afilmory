@@ -6,11 +6,17 @@ node_modules
 .DS_Store
 dist
 dist-ssr
+**/.next
+**/dist
+**/dist-ssr
+**/tsconfig.tsbuildinfo
 *.local
 
 apps/web/assets-git
+apps/web/public/photos
 apps/web/public/thumbnails
-apps/web/src/data/photos-manifest.json
+apps/ssr/public
+**/.afilmory-trash
 .vercel
 
 public/**

@@ -47,6 +47,7 @@ if (process.env.CI) {
   })
 }
 const DEV_NEXT_JS = process.env.DEV_NEXT_JS === 'true'
+const BUILD_FOR_SSR_HOST = process.env.BUILD_FOR_SSR_HOST === '1'
 
 const ReactCompilerConfig = {
   /* ... */
@@ -150,12 +151,16 @@ const staticWebBuildPlugins: PluginOption[] = [
     siteName: siteConfig.name,
     siteUrl: siteConfig.url,
   }),
-  photoOgMetadataPlugin({
-    title: siteConfig.title,
-    name: siteConfig.name,
-    description: siteConfig.description,
-    url: siteConfig.url,
-  }),
+  ...(BUILD_FOR_SSR_HOST
+    ? []
+    : [
+        photoOgMetadataPlugin({
+          title: siteConfig.title,
+          name: siteConfig.name,
+          description: siteConfig.description,
+          url: siteConfig.url,
+        }),
+      ]),
   createFeedSitemapPlugin(siteConfig),
   createHtmlPlugin({
     minify: {

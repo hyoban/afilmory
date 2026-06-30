@@ -1,24 +1,32 @@
 import { readFileSync } from 'node:fs'
+import process from 'node:process'
 
 import type { Plugin } from 'vite'
 
-import { MANIFEST_PATH } from './__internal__/constants'
+import { MANIFEST_PATH, MONOREPO_ROOT_PATH } from './__internal__/constants'
+import { consumeLocalPhotoTrashHmrSuppressMarker } from './local-photo-trash-hmr-suppress'
 
 function resolveEmbedPreference(_command: 'serve' | 'build'): boolean {
   const flag = process.env.AFILMORY_EMBED_MANIFEST?.trim().toLowerCase()
-  if (flag === 'true') return true
-  if (flag === 'false') return false
+  if (flag === 'true') {
+    return true
+  }
+  if (flag === 'false') {
+    return false
+  }
   return true
 }
 
 export function manifestInjectPlugin(): Plugin {
   let embedManifest: boolean | undefined
+  let suppressManifestReloadUntil = 0
 
   function getManifestContent(): string {
     try {
       const content = readFileSync(MANIFEST_PATH, 'utf-8')
       return content
-    } catch (error) {
+    }
+    catch (error) {
       console.warn('Failed to read manifest file:', error)
       return '{}'
     }
@@ -40,9 +48,19 @@ export function manifestInjectPlugin(): Plugin {
       // 监听 manifest 文件变化
       server.watcher.add(MANIFEST_PATH)
 
-      server.watcher.on('change', (file) => {
+      server.watcher.on('change', async (file) => {
         if (file === MANIFEST_PATH) {
-          console.info('[manifest-inject] Manifest file changed, triggering HMR...')
+          if (Date.now() < suppressManifestReloadUntil) {
+            return
+          }
+
+          if (await consumeLocalPhotoTrashHmrSuppressMarker(MONOREPO_ROOT_PATH)) {
+            suppressManifestReloadUntil = Date.now() + 2_000
+            server.config.logger.info('[manifest-inject] Manifest changed by local photo trash, skipping full reload.')
+            return
+          }
+
+          server.config.logger.info('[manifest-inject] Manifest file changed, triggering HMR...')
           // 触发页面重新加载
           server.ws.send({
             type: 'full-reload',

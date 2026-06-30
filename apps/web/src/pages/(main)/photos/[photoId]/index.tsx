@@ -11,6 +11,7 @@ import { useContextPhotos, usePhotoViewer } from '~/hooks/usePhotoViewer'
 import { useTitle } from '~/hooks/useTitle'
 import { deriveAccentFromSources } from '~/lib/color'
 import { PhotoViewer } from '~/modules/viewer'
+import { markPhotoLocallyTrashed, resolveLocalPhotoTrashSuccess } from '~/modules/viewer/local-photo-trash-state'
 
 export const Component = () => {
   const photoViewer = usePhotoViewer()
@@ -50,6 +51,23 @@ export const Component = () => {
     isCloseActiveRef.current = true
     setIsClosing(true)
   }, [])
+
+  const handlePhotoTrashSuccess = useCallback(
+    (photoId: string) => {
+      const trashedPhotoIndex = photos.findIndex(photo => photo.id === photoId)
+      const transition = resolveLocalPhotoTrashSuccess(photos, trashedPhotoIndex)
+
+      if (transition.type === 'go-to-index') {
+        photoViewer.goToIndex(transition.index, { replace: true })
+        markPhotoLocallyTrashed(photoId)
+        return
+      }
+
+      closeViewerRef.current({ replace: true })
+      markPhotoLocallyTrashed(photoId)
+    },
+    [photoViewer, photos],
+  )
 
   const handleExitComplete = useCallback(() => {
     if (isCloseActiveRef.current) {
@@ -157,6 +175,7 @@ export const Component = () => {
             disableEntryTransition={disableEntryTransition}
             onClose={handleClose}
             onIndexChange={photoViewer.goToIndex}
+            onTrashSuccess={handlePhotoTrashSuccess}
             onExitComplete={handleExitComplete}
           />
         </RemoveScroll>
