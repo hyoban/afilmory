@@ -83,6 +83,18 @@ export const resolveLocalPhotoTrashSuccess = (
   return { type: 'close' }
 }
 
+export const shouldIgnoreLocalPhotoTrashIndexChange = (
+  photos: PhotoLike[],
+  nextIndex: number,
+  pendingPhotoId: string | null,
+) => {
+  if (!pendingPhotoId) {
+    return false
+  }
+
+  return photos[nextIndex]?.id !== pendingPhotoId
+}
+
 export const getLocalPhotoTrashShortcutTarget = getShortcutTarget
 
 export const shouldHandleLocalPhotoTrashShortcut = ({

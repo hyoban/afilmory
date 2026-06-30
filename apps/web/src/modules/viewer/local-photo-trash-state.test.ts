@@ -6,6 +6,7 @@ import {
   excludeLocallyTrashedPhotos,
   resolveLocalPhotoTrashSuccess,
   shouldHandleLocalPhotoTrashShortcut,
+  shouldIgnoreLocalPhotoTrashIndexChange,
 } from './local-photo-trash-state'
 
 const photos = [{ id: 'a' }, { id: 'b' }, { id: 'c' }]
@@ -42,6 +43,14 @@ it('excludeLocallyTrashedPhotos removes locally trashed ids without mutating the
 
   assert.deepEqual(filtered, [{ id: 'a' }, { id: 'c' }])
   assert.deepEqual(photos, [{ id: 'a' }, { id: 'b' }, { id: 'c' }])
+})
+
+it('shouldIgnoreLocalPhotoTrashIndexChange suppresses stale slide changes while trash navigation is pending', () => {
+  const filteredPhotos = excludeLocallyTrashedPhotos(photos, new Set(['b']))
+
+  assert.equal(shouldIgnoreLocalPhotoTrashIndexChange(filteredPhotos, 0, 'c'), true)
+  assert.equal(shouldIgnoreLocalPhotoTrashIndexChange(filteredPhotos, 1, 'c'), false)
+  assert.equal(shouldIgnoreLocalPhotoTrashIndexChange(filteredPhotos, 0, null), false)
 })
 
 it('shouldHandleLocalPhotoTrashShortcut accepts Delete and Backspace in an active local viewer', () => {

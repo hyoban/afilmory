@@ -12,7 +12,11 @@ import { useTitle } from '~/hooks/useTitle'
 import { deriveAccentFromSources } from '~/lib/color'
 import { PhotoViewer } from '~/modules/viewer'
 import type { LocalPhotoTrashNavigationDirection } from '~/modules/viewer/local-photo-trash-state'
-import { markPhotoLocallyTrashed, resolveLocalPhotoTrashSuccess } from '~/modules/viewer/local-photo-trash-state'
+import {
+  markPhotoLocallyTrashed,
+  resolveLocalPhotoTrashSuccess,
+  shouldIgnoreLocalPhotoTrashIndexChange,
+} from '~/modules/viewer/local-photo-trash-state'
 
 export const Component = () => {
   const photoViewer = usePhotoViewer()
@@ -39,6 +43,7 @@ export const Component = () => {
   closeViewerRef.current = photoViewer.closeViewer
   const isCloseActiveRef = useRef(false)
   const trashNavigationDirectionRef = useRef<LocalPhotoTrashNavigationDirection>('forward')
+  const pendingTrashTargetPhotoIdRef = useRef<string | null>(null)
 
   // Cancel a pending close when the viewed photo changes (e.g. browser back/forward)
   useEffect(() => {
@@ -60,11 +65,13 @@ export const Component = () => {
       const transition = resolveLocalPhotoTrashSuccess(photos, trashedPhotoIndex, trashNavigationDirectionRef.current)
 
       if (transition.type === 'go-to-photo') {
+        pendingTrashTargetPhotoIdRef.current = transition.photoId
         photoViewer.goToPhoto(transition.photoId, { replace: true })
         markPhotoLocallyTrashed(photoId)
         return
       }
 
+      pendingTrashTargetPhotoIdRef.current = null
       closeViewerRef.current({ replace: true })
       markPhotoLocallyTrashed(photoId)
     },
@@ -73,6 +80,14 @@ export const Component = () => {
 
   const handleIndexChange = useCallback(
     (nextIndex: number) => {
+      const pendingTrashTargetPhotoId = pendingTrashTargetPhotoIdRef.current
+      if (shouldIgnoreLocalPhotoTrashIndexChange(photos, nextIndex, pendingTrashTargetPhotoId)) {
+        return
+      }
+      if (pendingTrashTargetPhotoId && photos[nextIndex]?.id === pendingTrashTargetPhotoId) {
+        pendingTrashTargetPhotoIdRef.current = null
+      }
+
       if (nextIndex < photoViewer.currentIndex) {
         trashNavigationDirectionRef.current = 'backward'
       }
@@ -82,8 +97,15 @@ export const Component = () => {
 
       photoViewer.goToIndex(nextIndex)
     },
-    [photoViewer],
+    [photoViewer, photos],
   )
+
+  useEffect(() => {
+    const pendingTrashTargetPhotoId = pendingTrashTargetPhotoIdRef.current
+    if (pendingTrashTargetPhotoId && photos[photoViewer.currentIndex]?.id === pendingTrashTargetPhotoId) {
+      pendingTrashTargetPhotoIdRef.current = null
+    }
+  }, [photoViewer.currentIndex, photos])
 
   const handleExitComplete = useCallback(() => {
     if (isCloseActiveRef.current) {
