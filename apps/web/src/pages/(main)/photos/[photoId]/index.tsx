@@ -11,6 +11,7 @@ import { useContextPhotos, usePhotoViewer } from '~/hooks/usePhotoViewer'
 import { useTitle } from '~/hooks/useTitle'
 import { deriveAccentFromSources } from '~/lib/color'
 import { PhotoViewer } from '~/modules/viewer'
+import type { LocalPhotoTrashNavigationDirection } from '~/modules/viewer/local-photo-trash-state'
 import { markPhotoLocallyTrashed, resolveLocalPhotoTrashSuccess } from '~/modules/viewer/local-photo-trash-state'
 
 export const Component = () => {
@@ -37,6 +38,7 @@ export const Component = () => {
   const closeViewerRef = useRef(photoViewer.closeViewer)
   closeViewerRef.current = photoViewer.closeViewer
   const isCloseActiveRef = useRef(false)
+  const trashNavigationDirectionRef = useRef<LocalPhotoTrashNavigationDirection>('forward')
 
   // Cancel a pending close when the viewed photo changes (e.g. browser back/forward)
   useEffect(() => {
@@ -55,10 +57,10 @@ export const Component = () => {
   const handlePhotoTrashSuccess = useCallback(
     (photoId: string) => {
       const trashedPhotoIndex = photos.findIndex(photo => photo.id === photoId)
-      const transition = resolveLocalPhotoTrashSuccess(photos, trashedPhotoIndex)
+      const transition = resolveLocalPhotoTrashSuccess(photos, trashedPhotoIndex, trashNavigationDirectionRef.current)
 
-      if (transition.type === 'go-to-index') {
-        photoViewer.goToIndex(transition.index, { replace: true })
+      if (transition.type === 'go-to-photo') {
+        photoViewer.goToPhoto(transition.photoId, { replace: true })
         markPhotoLocallyTrashed(photoId)
         return
       }
@@ -67,6 +69,20 @@ export const Component = () => {
       markPhotoLocallyTrashed(photoId)
     },
     [photoViewer, photos],
+  )
+
+  const handleIndexChange = useCallback(
+    (nextIndex: number) => {
+      if (nextIndex < photoViewer.currentIndex) {
+        trashNavigationDirectionRef.current = 'backward'
+      }
+      else if (nextIndex > photoViewer.currentIndex) {
+        trashNavigationDirectionRef.current = 'forward'
+      }
+
+      photoViewer.goToIndex(nextIndex)
+    },
+    [photoViewer],
   )
 
   const handleExitComplete = useCallback(() => {
@@ -115,6 +131,9 @@ export const Component = () => {
 
     let isCancelled = false
 
+    let cssTimeout: ReturnType<typeof setTimeout> | null = null
+    let cssElement: HTMLStyleElement | null = null
+
     ;(async () => {
       try {
         const color = await deriveAccentFromSources({
@@ -129,9 +148,12 @@ export const Component = () => {
             }
           `
           document.head.append($css)
+          cssElement = $css
 
-          setTimeout(() => {
+          cssTimeout = setTimeout(() => {
             $css.remove()
+            cssTimeout = null
+            cssElement = null
           }, 100)
 
           setAccentColor(color ?? null)
@@ -146,6 +168,10 @@ export const Component = () => {
 
     return () => {
       isCancelled = true
+      if (cssTimeout) {
+        clearTimeout(cssTimeout)
+      }
+      cssElement?.remove()
     }
   }, [photoViewer.currentIndex, photos])
 
@@ -174,7 +200,7 @@ export const Component = () => {
             triggerElement={photoViewer.triggerElement}
             disableEntryTransition={disableEntryTransition}
             onClose={handleClose}
-            onIndexChange={photoViewer.goToIndex}
+            onIndexChange={handleIndexChange}
             onTrashSuccess={handlePhotoTrashSuccess}
             onExitComplete={handleExitComplete}
           />

@@ -10,17 +10,24 @@ import {
 
 const photos = [{ id: 'a' }, { id: 'b' }, { id: 'c' }]
 
-it('resolveLocalPhotoTrashSuccess navigates to the next photo before filtering the trashed photo', () => {
+it('resolveLocalPhotoTrashSuccess navigates to the next photo id before filtering the trashed photo', () => {
   assert.deepEqual(resolveLocalPhotoTrashSuccess(photos, 1), {
-    type: 'go-to-index',
-    index: 2,
+    type: 'go-to-photo',
+    photoId: 'c',
   })
 })
 
-it('resolveLocalPhotoTrashSuccess falls back to the previous photo when trashing the last photo', () => {
+it('resolveLocalPhotoTrashSuccess follows the previous browsing direction when both neighbors exist', () => {
+  assert.deepEqual(resolveLocalPhotoTrashSuccess(photos, 1, 'backward'), {
+    type: 'go-to-photo',
+    photoId: 'a',
+  })
+})
+
+it('resolveLocalPhotoTrashSuccess falls back to the previous photo id when trashing the last photo', () => {
   assert.deepEqual(resolveLocalPhotoTrashSuccess(photos, 2), {
-    type: 'go-to-index',
-    index: 1,
+    type: 'go-to-photo',
+    photoId: 'b',
   })
 })
 

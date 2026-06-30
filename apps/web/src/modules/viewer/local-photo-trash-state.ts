@@ -24,12 +24,14 @@ type LocalPhotoTrashShortcutInput = {
 
 export type LocalPhotoTrashSuccessTransition
   = | {
-    type: 'go-to-index'
-    index: number
+    type: 'go-to-photo'
+    photoId: string
   }
   | {
     type: 'close'
   }
+
+export type LocalPhotoTrashNavigationDirection = 'forward' | 'backward'
 
 export const locallyTrashedPhotoIdsAtom = atom<ReadonlySet<string>>(new Set<string>())
 
@@ -59,22 +61,22 @@ export const excludeLocallyTrashedPhotos = <TPhoto extends PhotoLike>(
 export const resolveLocalPhotoTrashSuccess = (
   photos: PhotoLike[],
   currentIndex: number,
+  direction: LocalPhotoTrashNavigationDirection = 'forward',
 ): LocalPhotoTrashSuccessTransition => {
   if (currentIndex < 0 || currentIndex >= photos.length) {
     return { type: 'close' }
   }
 
-  if (photos[currentIndex + 1]) {
-    return {
-      type: 'go-to-index',
-      index: currentIndex + 1,
-    }
-  }
+  const preferredOffset = direction === 'backward' ? -1 : 1
+  const fallbackOffset = preferredOffset * -1
+  const preferredPhoto = photos[currentIndex + preferredOffset]
+  const fallbackPhoto = photos[currentIndex + fallbackOffset]
+  const targetPhoto = preferredPhoto ?? fallbackPhoto
 
-  if (photos[currentIndex - 1]) {
+  if (targetPhoto) {
     return {
-      type: 'go-to-index',
-      index: currentIndex - 1,
+      type: 'go-to-photo',
+      photoId: targetPhoto.id,
     }
   }
 

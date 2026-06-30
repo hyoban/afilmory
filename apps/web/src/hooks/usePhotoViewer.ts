@@ -12,6 +12,8 @@ import { getPhotoDateMs, getRangeEndMs, getRangeStartMs } from '~/modules/galler
 import { excludeLocallyTrashedPhotos, locallyTrashedPhotoIdsAtom } from '~/modules/viewer/local-photo-trash-state'
 import { PhotosContext } from '~/providers/photos-provider'
 
+import { resolvePhotoViewerCurrentIndex } from './photo-viewer-current-index'
+
 const data = photoLoader.getPhotos()
 
 // 抽取照片筛选和排序逻辑为独立函数
@@ -195,11 +197,7 @@ export const usePhotoViewer = () => {
 
   // Derive currentIndex from URL photo ID
   const currentIndex = useMemo(() => {
-    if (!urlPhotoId) {
-      return viewerState.photoId ? photos.findIndex(p => p.id === viewerState.photoId) : 0
-    }
-    const index = photos.findIndex(p => p.id === urlPhotoId)
-    return index !== -1 ? index : 0
+    return resolvePhotoViewerCurrentIndex(photos, urlPhotoId, viewerState.photoId)
   }, [urlPhotoId, photos, viewerState.photoId])
 
   const openViewer = useCallback(
@@ -278,6 +276,31 @@ export const usePhotoViewer = () => {
     [photos, navigate, location.search, urlPhotoId],
   )
 
+  const goToPhoto = useCallback(
+    (photoId: string, options?: { replace?: boolean }) => {
+      const photo = photos.find(photo => photo.id === photoId)
+      if (!photo) {
+        return
+      }
+
+      // Skip if URL already points to this photo (prevents loop on browser back/forward)
+      if (urlPhotoId === photo.id) {
+        return
+      }
+
+      setViewer(prev => ({
+        ...prev,
+        photoId: photo.id,
+      }))
+
+      // Create history entry for each photo navigation to support browser back/forward
+      navigate(`/photos/${photo.id}${location.search}`, { replace: options?.replace })
+
+      trackView(photo.id)
+    },
+    [photos, navigate, location.search, urlPhotoId],
+  )
+
   return {
     isOpen,
     currentIndex,
@@ -285,5 +308,6 @@ export const usePhotoViewer = () => {
     openViewer,
     closeViewer,
     goToIndex,
+    goToPhoto,
   }
 }
